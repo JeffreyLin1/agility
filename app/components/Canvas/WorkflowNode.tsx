@@ -179,7 +179,7 @@ export default function WorkflowNode({
           e.stopPropagation();
           if (isConnectionSource) {
             // Cancel connection if clicking on source again
-            onConnectionEnd && onConnectionEnd(null);
+            onConnectionEnd && onConnectionEnd('');
           } else {
             // Complete connection
             onConnectionEnd && onConnectionEnd(element.id);
