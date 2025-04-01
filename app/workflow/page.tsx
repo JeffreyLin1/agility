@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { Agent, Workflow } from '../types';
-import { Header, Sidebar } from '../components/Layout';
-import { AgentList } from '../components/Agents';
+import { Header } from '../components/Layout';
 import { Canvas } from '../components/Canvas';
+import FloatingAgentPanel from '../components/Agents/FloatingAgentPanel';
 
-// Sample data for initial development
+// Expanded list of sample agents
 const sampleAgents: Agent[] = [
   {
     id: '1',
@@ -31,6 +31,102 @@ const sampleAgents: Agent[] = [
     name: 'Decision Maker',
     description: 'Makes decisions based on input data',
     color: '#fffbeb'  // Light yellow
+  },
+  {
+    id: '5',
+    name: 'Language Translator',
+    description: 'Translates text between languages',
+    color: '#f5f3ff'  // Light purple
+  },
+  {
+    id: '6',
+    name: 'Sentiment Analyzer',
+    description: 'Analyzes sentiment in text',
+    color: '#eff6ff'  // Light blue
+  },
+  {
+    id: '7',
+    name: 'Code Generator',
+    description: 'Generates code based on requirements',
+    color: '#ecfdf5'  // Light green
+  },
+  {
+    id: '8',
+    name: 'Speech Recognizer',
+    description: 'Converts speech to text',
+    color: '#fef2f2'  // Light red
+  },
+  {
+    id: '9',
+    name: 'Text Summarizer',
+    description: 'Creates concise summaries of longer texts',
+    color: '#fff7ed'  // Light orange
+  },
+  {
+    id: '10',
+    name: 'Entity Extractor',
+    description: 'Identifies and extracts entities from text',
+    color: '#f8fafc'  // Light gray
+  },
+  {
+    id: '11',
+    name: 'Image Generator',
+    description: 'Creates images from text descriptions',
+    color: '#f0fdfa'  // Light teal
+  },
+  {
+    id: '12',
+    name: 'Question Answerer',
+    description: 'Answers questions based on context',
+    color: '#faf5ff'  // Light purple
+  },
+  {
+    id: '13',
+    name: 'Data Visualizer',
+    description: 'Creates visual representations of data',
+    color: '#f0f9ff'  // Light blue
+  },
+  {
+    id: '14',
+    name: 'Audio Processor',
+    description: 'Processes and analyzes audio files',
+    color: '#f0fdf4'  // Light green
+  },
+  {
+    id: '15',
+    name: 'Document Parser',
+    description: 'Extracts structured data from documents',
+    color: '#fef2f2'  // Light red
+  },
+  {
+    id: '16',
+    name: 'Chatbot',
+    description: 'Engages in conversational interactions',
+    color: '#fffbeb'  // Light yellow
+  },
+  {
+    id: '17',
+    name: 'Video Analyzer',
+    description: 'Analyzes video content and extracts information',
+    color: '#f5f3ff'  // Light purple
+  },
+  {
+    id: '18',
+    name: 'Recommendation Engine',
+    description: 'Provides personalized recommendations',
+    color: '#eff6ff'  // Light blue
+  },
+  {
+    id: '19',
+    name: 'Knowledge Base',
+    description: 'Stores and retrieves information',
+    color: '#ecfdf5'  // Light green
+  },
+  {
+    id: '20',
+    name: 'Anomaly Detector',
+    description: 'Identifies unusual patterns in data',
+    color: '#fef2f2'  // Light red
   }
 ];
 
@@ -50,21 +146,20 @@ export default function WorkflowPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white relative">
       <Header />
-      <div className="flex-1 flex">
-        <Sidebar>
-          <AgentList 
-            agents={agents} 
-            onAgentDragStart={handleAgentDragStart}
-          />
-        </Sidebar>
-        <div className="flex-1 p-6">
-          <Canvas 
-            workflow={workflow} 
-            onWorkflowChange={setWorkflow}
-          />
-        </div>
+      <div className="flex-1 relative">
+        {/* The canvas now takes up the entire page below the header */}
+        <Canvas 
+          workflow={workflow} 
+          onWorkflowChange={setWorkflow}
+        />
+        
+        {/* Floating agent panel */}
+        <FloatingAgentPanel 
+          agents={agents} 
+          onAgentDragStart={handleAgentDragStart}
+        />
       </div>
     </div>
   );

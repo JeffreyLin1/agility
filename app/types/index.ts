@@ -38,3 +38,27 @@ export interface Workflow {
   elements: WorkflowElement[];
   connections: Connection[];
 } 
+
+export interface Connection {
+    id: string;
+    sourceId: string;
+    targetId: string;
+    type: string;
+    data?: any;
+  }
+  
+  // Update the Workflow interface to include connections
+  export interface Workflow {
+    id: string;
+    name: string;
+    elements: WorkflowElement[];
+    connections: Connection[];
+  }
+  
+  // Make sure emptyWorkflow includes connections
+  export const emptyWorkflow: Workflow = {
+    id: 'workflow-1',
+    name: 'New Workflow',
+    elements: [],
+    connections: []
+  };
