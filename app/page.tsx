@@ -98,14 +98,13 @@ export default function Home() {
                   required
                   className="flex-1 px-4 py-3 border-2 border-black rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  size="lg"
+                <button 
+                  type="submit"
+                  className="px-6 py-3 bg-black text-white font-medium rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-y-[3px] active:translate-x-[3px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,0.3)] transition-all"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Joining...' : 'Join the Waitlist'}
-                </Button>
+                </button>
               </div>
             </form>
             
