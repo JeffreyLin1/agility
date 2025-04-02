@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Agent, Workflow, WorkflowElement, Connection } from '@/app/types';
 import WorkflowNode from './WorkflowNode';
 import ConnectionLine from './ConnectionLine';
+import { useAuth } from '@/app/context/AuthContext';
 
 interface CanvasProps {
   workflow: Workflow;
@@ -26,9 +27,12 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
   // AI chat state
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   
   // Add this new state to track whether the AI prompt is visible
   const [isAiPromptVisible, setIsAiPromptVisible] = useState(false);
+  
+  const { session } = useAuth();
   
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -247,44 +251,47 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
     return element ? element.position : { x: 0, y: 0 };
   };
 
-  // Function to generate a workflow using OpenAI
-  const generateWorkflow = async () => {
-    if (!aiPrompt.trim() || !onWorkflowChange) return;
-    
+  // Function to generate a workflow using OpenAI via Supabase Edge Function
+  const generateWorkflow = async (prompt: string) => {
     setIsGenerating(true);
+    setGenerationError(null);
     
     try {
-      const response = await fetch('/api/generate-workflow', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: aiPrompt }),
-      });
+      if (!session?.access_token) {
+        throw new Error('You must be logged in to generate workflows');
+      }
+      
+      // Call the Supabase Edge Function
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-workflow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ prompt }),
+        }
+      );
       
       if (!response.ok) {
-        throw new Error('Failed to generate workflow');
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
       }
       
       const data = await response.json();
       
-      // Apply the generated workflow
-      if (data.workflow) {
-        // Position the elements in a nice layout
-        const positionedElements = positionWorkflowElements(data.workflow.elements);
-        
-        onWorkflowChange({
-          ...workflow,
-          elements: [...workflow.elements, ...positionedElements],
-          connections: [...workflow.connections, ...data.workflow.connections],
-        });
+      if (data.error) {
+        throw new Error(data.error);
       }
       
-      // Clear the prompt
+      // Update the workflow with the generated data
+      onWorkflowChange(data.workflow);
       setAiPrompt('');
+      setIsAiPromptVisible(false);
     } catch (error) {
       console.error('Error generating workflow:', error);
-      alert('Failed to generate workflow. Please try again.');
+      setGenerationError(error.message || 'Failed to generate workflow');
     } finally {
       setIsGenerating(false);
     }
@@ -368,7 +375,7 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
               onChange={(e) => setAiPrompt(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !isGenerating) {
-                  generateWorkflow();
+                  generateWorkflow(aiPrompt);
                 } else if (e.key === 'Escape') {
                   toggleAiPrompt();
                 }
@@ -378,7 +385,10 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
             <button
               className={`ml-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-md 
                 ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800'}`}
-              onClick={generateWorkflow}
+              onClick={(e) => {
+                e.preventDefault();
+                generateWorkflow(aiPrompt);
+              }}
               disabled={isGenerating}
             >
               {isGenerating ? (
