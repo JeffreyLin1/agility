@@ -6,13 +6,17 @@ import { Button } from './components/ui';
 import { useAuth } from './context/AuthContext';
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
+import { FormEvent } from 'react';
 
 export default function Home() {
   const { user, isLoading } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(null);
+  const [submitStatus, setSubmitStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     // Simple fade-in animation
@@ -23,7 +27,7 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleWaitlistSignup = async (e) => {
+  const handleWaitlistSignup = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!email || isSubmitting) return;
@@ -41,7 +45,7 @@ export default function Home() {
       
       setSubmitStatus({ type: 'success', message: 'You\'ve been added to the waitlist!' });
       setEmail('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding to waitlist:', error);
       setSubmitStatus({ 
         type: 'error', 
