@@ -11,20 +11,18 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const { signIn } = useAuth();
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
   const router = useRouter();
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-    setDebugInfo("Processing sign in...");
-
+    
     try {
       const result = await signIn(email, password);
-      setDebugInfo(`Sign in successful, redirecting... Session: ${!!result.session}`);
       
       // Force a complete page reload with replace
       setTimeout(() => {
@@ -33,7 +31,6 @@ export default function SignIn() {
     } catch (error: any) {
       console.error("Sign in error:", error);
       setError(error.message || 'An error occurred during sign in');
-      setDebugInfo(`Sign in failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -56,12 +53,6 @@ export default function SignIn() {
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
                 {error}
-              </div>
-            )}
-            
-            {debugInfo && (
-              <div className="mb-4 p-3 bg-gray-50 border border-gray-200 text-gray-700 rounded text-xs">
-                Debug: {debugInfo}
               </div>
             )}
             
