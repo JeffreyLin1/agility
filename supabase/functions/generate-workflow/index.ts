@@ -1,8 +1,12 @@
+// @ts-ignore: Deno imports
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// @ts-ignore: Deno imports
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// @ts-ignore: Deno imports
 import OpenAI from 'https://esm.sh/openai@4.91.0';
 
 // Import the agents
+// @ts-ignore: Deno imports
 import { availableAgents } from '../_shared/agents.ts';
 
 function generateId(prefix: string, index: number): string {
