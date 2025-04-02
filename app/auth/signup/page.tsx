@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { Header } from '@/app/components/Layout';
 import Link from 'next/link';
@@ -11,7 +11,16 @@ export default function SignUp() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const { signUp } = useAuth();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +46,9 @@ export default function SignUp() {
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
       <main className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
+        <div className={`w-full max-w-md transition-all duration-700 transform ${
+          isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+        }`}>
           <div className="bg-white border-2 border-black rounded-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8">
             <h2 className="text-2xl font-bold mb-6 text-center text-black">Create an Account</h2>
             

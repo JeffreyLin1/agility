@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Agent } from '@/app/types';
 import AgentList from './AgentList';
 
@@ -10,6 +10,15 @@ interface FloatingAgentPanelProps {
 export default function FloatingAgentPanel({ agents, onAgentDragStart }: FloatingAgentPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isVisible, setIsVisible] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 300); // Slightly delayed after page load
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   // Filter agents based on search query
   const filteredAgents = agents.filter(agent => 
@@ -19,9 +28,9 @@ export default function FloatingAgentPanel({ agents, onAgentDragStart }: Floatin
   
   return (
     <div 
-      className={`absolute left-4 top-20 z-10 bg-white border-2 border-black rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all duration-300 ${
+      className={`absolute left-4 top-20 z-10 bg-white border-2 border-black rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all duration-500 ${
         isCollapsed ? 'w-12' : 'w-72'
-      }`}
+      } ${isVisible ? 'translate-x-0 opacity-100' : '-translate-x-10 opacity-0'}`}
     >
       <div className="flex justify-between items-center p-2 border-b-2 border-black">
         {!isCollapsed && <h3 className="font-bold text-black">Agents</h3>}

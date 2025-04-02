@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { Header } from '@/app/components/Layout';
 import Link from 'next/link';
@@ -12,23 +12,27 @@ function SignInForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const { signIn } = useAuth();
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
   const router = useRouter();
   
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
     
     try {
-      const result = await signIn(email, password);
-      
-      // Force a complete page reload with replace
-      setTimeout(() => {
-        window.location.replace('/workflow');
-      }, 1000);
+     router.replace('/workflow');
     } catch (error: any) {
       console.error("Sign in error:", error);
       setError(error.message || 'An error occurred during sign in');
@@ -38,7 +42,9 @@ function SignInForm() {
   };
 
   return (
-    <div className="w-full max-w-md">
+    <div className={`w-full max-w-md transition-all duration-700 transform ${
+      isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
+    }`}>
       <div className="bg-white border-2 border-black rounded-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8">
         <h2 className="text-2xl font-bold mb-6 text-center text-black">Sign In</h2>
         

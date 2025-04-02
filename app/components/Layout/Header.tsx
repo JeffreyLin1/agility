@@ -2,12 +2,24 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
+import { useEffect, useState } from 'react';
 
 export default function Header() {
   const { user, signOut, isLoading } = useAuth();
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 50); // Slightly faster than page content
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <header className="bg-white border-b-2 border-black py-4 px-6 sticky top-0 z-10">
+    <header className={`bg-white border-b-2 border-black py-4 px-6 sticky top-0 z-10 transition-all duration-500 ${
+      isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+    }`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Agent, Workflow } from '../types';
 import { Header } from '../components/Layout';
 import { Canvas } from '../components/Canvas';
@@ -140,6 +140,15 @@ const emptyWorkflow: Workflow = {
 export default function WorkflowPage() {
   const [agents] = useState<Agent[]>(sampleAgents);
   const [workflow, setWorkflow] = useState<Workflow>(emptyWorkflow);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleAgentDragStart = (e: React.DragEvent, agent: Agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify(agent));
@@ -148,7 +157,9 @@ export default function WorkflowPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white relative">
       <Header />
-      <div className="flex-1 relative">
+      <div className={`flex-1 relative transition-all duration-700 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}>
         {/* The canvas now takes up the entire page below the header */}
         <Canvas 
           workflow={workflow} 
