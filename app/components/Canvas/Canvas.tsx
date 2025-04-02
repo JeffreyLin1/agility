@@ -286,10 +286,12 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       }
       
       // Update the workflow with the generated data
-      onWorkflowChange(data.workflow);
+      if (onWorkflowChange) {
+        onWorkflowChange(data.workflow);
+      }
       setAiPrompt('');
       setIsAiPromptVisible(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating workflow:', error);
       setGenerationError(error.message || 'Failed to generate workflow');
     } finally {
