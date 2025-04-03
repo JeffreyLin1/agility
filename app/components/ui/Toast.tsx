@@ -124,6 +124,16 @@ interface ToastContainerProps {
 }
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, removeToast }) => {
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
+  
+  // Only render on client-side
+  if (!isMounted) return null;
+  
   return createPortal(
     <div className="fixed top-0 left-0 right-0 flex flex-col items-center z-50 pointer-events-none">
       <div className="flex flex-col items-center space-y-2 p-4 pointer-events-auto">
@@ -151,6 +161,12 @@ export const ToastContext = React.createContext<ToastContextType | undefined>(un
 // Toast provider
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: ToastType }>>([]);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
 
   const showToast = (message: string, type: ToastType) => {
     const id = Date.now().toString();
@@ -164,7 +180,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      {isMounted && <ToastContainer toasts={toasts} removeToast={removeToast} />}
     </ToastContext.Provider>
   );
 };
