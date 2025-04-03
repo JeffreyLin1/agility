@@ -123,15 +123,11 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
   const handleElementPositionChange = (elementId: string, newPosition: { x: number, y: number }) => {
     if (!onWorkflowChange) return;
     
-    const updatedElements = workflow.elements.map(element => {
-      if (element.id === elementId) {
-        return {
-          ...element,
-          position: newPosition
-        };
-      }
-      return element;
-    });
+    const updatedElements = workflow.elements.map(element => 
+      element.id === elementId 
+        ? { ...element, position: newPosition } 
+        : element
+    );
     
     onWorkflowChange({
       ...workflow,
@@ -421,7 +417,9 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
         
         if (data.workflow && data.workflow.data) {
           setWorkflowName(data.workflow.name || 'My Workflow');
-          onWorkflowChange(data.workflow.data);
+          if (onWorkflowChange) {
+            onWorkflowChange(data.workflow.data);
+          }
         }
       } catch (err: any) {
         console.error('Error loading workflow:', err);
