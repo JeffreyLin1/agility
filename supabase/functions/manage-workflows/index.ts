@@ -79,13 +79,13 @@ serve(async (req) => {
         })
       }
       
-      // Update or insert the workflow
+      // Update or insert the workflow with a default name
       const { data, error } = existingWorkflow 
         ? await supabaseClient
             .from('user_workflows')
             .update({
               data: workflowData,
-              name: workflowName || 'My Workflow',
+              name: 'My Workflow', // Use a default name
               updated_at: new Date().toISOString(),
             })
             .eq('id', existingWorkflow.id)
@@ -96,7 +96,7 @@ serve(async (req) => {
             .insert({
               user_id: user.id,
               data: workflowData,
-              name: workflowName || 'My Workflow',
+              name: 'My Workflow', // Use a default name
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
@@ -110,10 +110,11 @@ serve(async (req) => {
         })
       }
       
-      console.log("Request body:", { action, workflowName });
-
+      console.log("Workflow saved successfully");
+      
+      // Return the workflow data
       return new Response(JSON.stringify({ 
-        success: true,
+        message: 'Workflow saved successfully',
         workflow: data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

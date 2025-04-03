@@ -5,6 +5,7 @@ import { Agent, Workflow } from '../types';
 import { Header } from '../components/Layout';
 import { Canvas } from '../components/Canvas';
 import FloatingAgentPanel from '../components/Agents/FloatingAgentPanel';
+import TemplatesPanel from '@/app/components/Templates/TemplatesPanel';
 
 // Expanded list of sample agents
 const sampleAgents: Agent[] = [
@@ -153,6 +154,10 @@ export default function WorkflowPage() {
   const handleAgentDragStart = (e: React.DragEvent, agent: Agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify(agent));
   };
+  
+  const handleTemplateDragStart = (e: React.DragEvent, template: Workflow) => {
+    e.dataTransfer.setData('application/json-template', JSON.stringify(template));
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-white relative">
@@ -170,6 +175,11 @@ export default function WorkflowPage() {
         <FloatingAgentPanel 
           agents={agents} 
           onAgentDragStart={handleAgentDragStart}
+        />
+        
+        {/* Templates panel */}
+        <TemplatesPanel
+          onTemplateDragStart={handleTemplateDragStart}
         />
       </div>
     </div>

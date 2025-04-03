@@ -6,6 +6,7 @@ import ConnectionLine from './ConnectionLine';
 import { useAuth } from '@/app/context/AuthContext';
 import ConfigSidebar from '../Agents/ConfigSidebar';
 import { useToast } from '../ui/Toast';
+import { v4 as uuidv4 } from 'uuid';
 
 interface CanvasProps {
   workflow: Workflow;
@@ -42,7 +43,6 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
   
   // Add these new state variables to your Canvas component
   const [workflowId, setWorkflowId] = useState<string | null>(null);
-  const [workflowName, setWorkflowName] = useState('Untitled Workflow');
   const [isSaving, setIsSaving] = useState(false);
   
   const { session } = useAuth();
@@ -55,6 +55,13 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
   
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    
+    // Check if this is a template drop
+    const templateData = e.dataTransfer.getData('application/json-template');
+    if (templateData) {
+      handleTemplateDrop(e);
+      return;
+    }
     
     try {
       // Get the agent data from the drag event
@@ -363,8 +370,7 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
         },
         body: JSON.stringify({
           action: 'save',
-          workflowData: workflow,
-          workflowName: workflowName
+          workflowData: workflow
         })
       });
       
@@ -392,45 +398,102 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
     }
   };
 
-  // Modify the useEffect for loading
-  useEffect(() => {
-    const loadWorkflow = async () => {
-      if (!session?.access_token) return;
-      
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-workflows`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            action: 'load'
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to load workflow');
-        }
-        
-        if (data.workflow && data.workflow.data) {
-          setWorkflowName(data.workflow.name || 'My Workflow');
-          if (onWorkflowChange) {
-            onWorkflowChange(data.workflow.data);
-          }
-        }
-      } catch (err: any) {
-        console.error('Error loading workflow:', err);
-        showToast(err.message || 'Failed to load workflow', 'error');
-      }
-    };
+  // Modify the loadWorkflow function
+  const loadWorkflow = async () => {
+    if (!session?.access_token) return;
     
-    if (session) {
-      loadWorkflow();
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-workflows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'load'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load workflow');
+      }
+      
+      if (data.workflow && data.workflow.data) {
+        if (onWorkflowChange) {
+          onWorkflowChange(data.workflow.data);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error loading workflow:', err);
+      showToast(err.message || 'Failed to load workflow', 'error');
     }
-  }, [session]);
+  };
+
+  // Inside the Canvas component, add this function to handle template drops
+  const handleTemplateDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    try {
+      // Get the template data from the drag event
+      const templateData = e.dataTransfer.getData('application/json-template');
+      if (!templateData) return;
+      
+      const template = JSON.parse(templateData) as Workflow;
+      
+      // Calculate position relative to the canvas, accounting for pan
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (!canvasRect) return;
+      
+      // Calculate the drop position in the panned coordinate system
+      const dropX = e.clientX - canvasRect.left - panOffset.x;
+      const dropY = e.clientY - canvasRect.top - panOffset.y;
+      
+      // Find the top-left position of the template
+      const minX = Math.min(...template.elements.map(el => el.position.x));
+      const minY = Math.min(...template.elements.map(el => el.position.y));
+      
+      // Create a map of old element IDs to new element IDs
+      const idMap = new Map<string, string>();
+      
+      // Create new elements with adjusted positions
+      const newElements = template.elements.map(element => {
+        const newId = `element-${uuidv4()}`;
+        idMap.set(element.id, newId);
+        
+        return {
+          ...element,
+          id: newId,
+          position: {
+            x: element.position.x - minX + dropX,
+            y: element.position.y - minY + dropY
+          }
+        };
+      });
+      
+      // Create new connections with updated element IDs
+      const newConnections = template.connections.map(connection => {
+        return {
+          id: `connection-${uuidv4()}`,
+          sourceId: idMap.get(connection.sourceId) || '',
+          targetId: idMap.get(connection.targetId) || '',
+          type: connection.type
+        };
+      });
+      
+      // Update the workflow with the new elements and connections
+      if (onWorkflowChange) {
+        onWorkflowChange({
+          ...workflow,
+          elements: [...workflow.elements, ...newElements],
+          connections: [...workflow.connections, ...newConnections]
+        });
+      }
+    } catch (error) {
+      console.error('Error handling template drop:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -531,13 +594,6 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       
       {/* Add this to your toolbar JSX */}
       <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
-        <input
-          type="text"
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          className="px-3 py-2 border-2 border-black rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-          placeholder="Workflow name"
-        />
         <button
           onClick={saveWorkflow}
           disabled={isSaving}
