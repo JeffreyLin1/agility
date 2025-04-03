@@ -1,8 +1,11 @@
+'use client'
 import { useState, useRef, useEffect } from 'react';
 import { Agent, Workflow, WorkflowElement, Connection } from '@/app/types';
 import WorkflowNode from './WorkflowNode';
 import ConnectionLine from './ConnectionLine';
 import { useAuth } from '@/app/context/AuthContext';
+import ConfigSidebar from '../Agents/ConfigSidebar';
+import { useToast } from '../ui/Toast';
 
 interface CanvasProps {
   workflow: Workflow;
@@ -32,7 +35,18 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
   // Add this new state to track whether the AI prompt is visible
   const [isAiPromptVisible, setIsAiPromptVisible] = useState(false);
   
+  // Add these state variables to the Canvas component
+  const [configSidebarOpen, setConfigSidebarOpen] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  
+  // Add these new state variables to your Canvas component
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [workflowName, setWorkflowName] = useState('Untitled Workflow');
+  const [isSaving, setIsSaving] = useState(false);
+  
   const { session } = useAuth();
+  const { showToast } = useToast();
   
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -258,7 +272,8 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
     
     try {
       if (!session?.access_token) {
-        throw new Error('You must be logged in to generate workflows');
+        showToast('You must be logged in to generate workflows', 'error');
+        return;
       }
       
       // Call the Supabase Edge Function
@@ -326,12 +341,105 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
     }
   };
 
+  // Add this function to handle element selection
+  const handleElementSelect = (elementId: string, agentId: string) => {
+    setSelectedElement(elementId);
+    setSelectedAgentId(agentId);
+    setConfigSidebarOpen(true);
+  };
+
+  // Modify the saveWorkflow function
+  const saveWorkflow = async () => {
+    if (!session?.access_token) {
+      showToast('You must be logged in to save a workflow', 'error');
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-workflows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'Origin': window.location.origin
+        },
+        body: JSON.stringify({
+          action: 'save',
+          workflowData: workflow,
+          workflowName: workflowName
+        })
+      });
+      
+      if (!response) {
+        throw new Error('Network error: No response received');
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      showToast('Workflow saved successfully!', 'success');
+      
+      // If the response includes a workflow ID, update the state
+      if (data.workflow && data.workflow.id) {
+        setWorkflowId(data.workflow.id);
+      }
+    } catch (err) {
+      console.error('Error saving workflow:', err);
+      showToast(err instanceof Error ? err.message : 'Failed to save workflow', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Modify the useEffect for loading
+  useEffect(() => {
+    const loadWorkflow = async () => {
+      if (!session?.access_token) return;
+      
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-workflows`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action: 'load'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load workflow');
+        }
+        
+        if (data.workflow && data.workflow.data) {
+          setWorkflowName(data.workflow.name || 'My Workflow');
+          onWorkflowChange(data.workflow.data);
+        }
+      } catch (err: any) {
+        console.error('Error loading workflow:', err);
+        showToast(err.message || 'Failed to load workflow', 'error');
+      }
+    };
+    
+    if (session) {
+      loadWorkflow();
+    }
+  }, [session]);
+
   return (
     <div className="flex flex-col h-full w-full">
       <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
         {isConnecting && (
           <div className="bg-white px-4 py-2 rounded-md border-2 border-black shadow-md">
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium text-black">
               {connectionSource ? "Drag to a target node or release to cancel" : "Select a source node"}
             </p>
           </div>
@@ -414,6 +522,44 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
           </div>
         </div>
       )}
+      
+      {/* Add the ConfigSidebar component */}
+      <ConfigSidebar 
+        isOpen={configSidebarOpen}
+        onClose={() => setConfigSidebarOpen(false)}
+        elementId={selectedElement}
+        agentId={selectedAgentId}
+      />
+      
+      {/* Add this to your toolbar JSX */}
+      <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
+        <input
+          type="text"
+          value={workflowName}
+          onChange={(e) => setWorkflowName(e.target.value)}
+          className="px-3 py-2 border-2 border-black rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          placeholder="Workflow name"
+        />
+        <button
+          onClick={saveWorkflow}
+          disabled={isSaving}
+          className={`px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+            isSaving ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSaving ? (
+            <span className="flex items-center">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Saving...
+            </span>
+          ) : (
+            "Save Workflow"
+          )}
+        </button>
+      </div>
       
       <div 
         className="absolute inset-0 bg-white overflow-hidden cursor-grab"
@@ -537,6 +683,7 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
                 isConnecting={isConnecting}
                 isConnectionSource={connectionSource === element.id}
                 isConnectionTarget={isConnecting && connectionSource !== element.id}
+                onSelect={handleElementSelect}
               />
             ))
           )}

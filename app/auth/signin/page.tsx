@@ -32,7 +32,13 @@ function SignInForm() {
     setError(null);
     
     try {
-     router.replace('/workflow');
+      // Call the signIn function from the auth context
+      const { user } = await signIn(email, password);
+      
+      if (user) {
+        // Only redirect if sign-in was successful
+        router.replace('/workflow');
+      }
     } catch (error: any) {
       console.error("Sign in error:", error);
       setError(error.message || 'An error occurred during sign in');

@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { WorkflowElement } from '@/app/types';
+import TextGeneratorConfig from '../Agents/TextGeneratorConfig';
 
 interface WorkflowNodeProps {
   element: WorkflowElement;
   onPositionChange?: (id: string, position: { x: number, y: number }) => void;
   onDelete?: () => void;
   onConnectionStart?: (elementId: string, position: { x: number, y: number }) => void;
-  onConnectionEnd?: (elementId: string) => void;
+  onConnectionEnd?: (elementId: string | null) => void;
   isConnecting: boolean;
   isConnectionSource: boolean;
   isConnectionTarget: boolean;
+  onSelect?: (elementId: string, agentId: string) => void;
 }
 
 export default function WorkflowNode({ 
@@ -20,7 +22,8 @@ export default function WorkflowNode({
   onConnectionEnd,
   isConnecting,
   isConnectionSource,
-  isConnectionTarget
+  isConnectionTarget,
+  onSelect
 }: WorkflowNodeProps) {
   const { position, data } = element;
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -152,103 +155,112 @@ export default function WorkflowNode({
     }
   };
   
+  // Add this function to handle node click
+  const handleNodeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // If we're in connecting mode, handle connection
+    if (isConnecting) {
+      if (onConnectionEnd) {
+        onConnectionEnd(element.id);
+      }
+      return;
+    }
+    
+    // Otherwise, select the node for configuration
+    if (onSelect && element.agentId === '1') { // Text Generator agent ID
+      onSelect(element.id, element.agentId);
+    }
+  };
+  
   return (
-    <div
-      ref={nodeRef}
-      className={`absolute bg-white border-2 ${
-        isConnectionTarget ? 'border-blue-500' : 
-        isConnectionSource ? 'border-green-500' : 
-        'border-black'
-      } rounded-md ${
-        isDragging 
-          ? 'shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)] rotate-1' 
-          : 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
-      } cursor-move overflow-hidden transition-all duration-75`}
-      style={{
-        position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${baseWidth}px`,
-        transform: 'translate(-50%, -50%)',
-        zIndex: isDragging ? 100 : 1,
-      }}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleNodeMouseUp}
-      onClick={(e) => {
-        if (isConnecting) {
-          e.stopPropagation();
-          if (isConnectionSource) {
-            // Cancel connection if clicking on source again
-            onConnectionEnd && onConnectionEnd('');
-          } else {
-            // Complete connection
-            onConnectionEnd && onConnectionEnd(element.id);
-          }
-        }
-      }}
-    >
-      {/* Connection handle */}
-      <div 
-        ref={handleRef}
-        className={`absolute -right-3 top-1/2 w-6 h-6 rounded-full bg-white border-2 
-          ${isConnecting && isConnectionSource ? 'border-green-500' : 
-            isConnecting ? 'border-blue-500' : 'border-black'} 
-          transform -translate-y-1/2 cursor-grab z-10 hover:scale-110 transition-transform
-          ${isHandleDragging ? 'scale-110' : ''}`}
-        onMouseDown={handleConnectionHandleMouseDown}
+    <>
+      <div
+        ref={nodeRef}
+        className={`absolute bg-white border-2 ${
+          isConnectionTarget ? 'border-blue-500' : 
+          isConnectionSource ? 'border-green-500' : 
+          'border-black'
+        } rounded-md ${
+          isDragging 
+            ? 'shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)] rotate-1' 
+            : 'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
+        } cursor-move overflow-hidden transition-all duration-75`}
         style={{
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          position: 'absolute',
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: `${baseWidth}px`,
+          transform: 'translate(-50%, -50%)',
+          zIndex: isDragging ? 100 : 1,
         }}
+        onMouseDown={handleMouseDown}
+        onClick={handleNodeClick}
+        onMouseUp={handleNodeMouseUp}
       >
-        <div className="w-full h-full flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </div>
-      </div>
-      
-      {/* Card header with color and icon */}
-      <div 
-        className="w-full py-2 px-3 border-b-2 border-black flex items-center justify-between"
-        style={{ backgroundColor: getCardBackgroundColor() }}
-      >
-        <h3 className="font-bold text-black text-sm">{data.name}</h3>
+        {/* Connection handle */}
         <div 
-          className="w-8 h-8 flex items-center justify-center border border-black rounded-full bg-white"
+          ref={handleRef}
+          className={`absolute -right-3 top-1/2 w-6 h-6 rounded-full bg-white border-2 
+            ${isConnecting && isConnectionSource ? 'border-green-500' : 
+              isConnecting ? 'border-blue-500' : 'border-black'} 
+            transform -translate-y-1/2 cursor-grab z-10 hover:scale-110 transition-transform
+            ${isHandleDragging ? 'scale-110' : ''}`}
+          onMouseDown={handleConnectionHandleMouseDown}
+          style={{
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}
         >
-          {data.icon ? (
-            <span>{data.icon}</span>
-          ) : (
-            <span className="text-sm font-bold">{data.name.charAt(0)}</span>
-          )}
+          <div className="w-full h-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </div>
+        
+        {/* Card header with color and icon */}
+        <div 
+          className="w-full py-2 px-3 border-b-2 border-black flex items-center justify-between"
+          style={{ backgroundColor: getCardBackgroundColor() }}
+        >
+          <h3 className="font-bold text-black text-sm">{data.name}</h3>
+          <div 
+            className="w-8 h-8 flex items-center justify-center border border-black rounded-full bg-white"
+          >
+            {data.icon ? (
+              <span>{data.icon}</span>
+            ) : (
+              <span className="text-sm font-bold">{data.name.charAt(0)}</span>
+            )}
+          </div>
+        </div>
+        
+        {/* Card body */}
+        <div className="p-3">
+          <p className="text-xs text-black">{data.description}</p>
+        </div>
+        
+        {/* Card footer */}
+        <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+          <span className="text-xs font-medium text-gray-600">Agent</span>
+          <div className="flex space-x-1">
+            {onDelete && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-gray-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      
-      {/* Card body */}
-      <div className="p-3">
-        <p className="text-xs text-black">{data.description}</p>
-      </div>
-      
-      {/* Card footer */}
-      <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-        <span className="text-xs font-medium text-gray-600">Agent</span>
-        <div className="flex space-x-1">
-          {onDelete && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-gray-200"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </>
   );
 } 
