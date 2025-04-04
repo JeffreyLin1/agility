@@ -14,6 +14,12 @@ const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const REDIRECT_URI = Deno.env.get('GMAIL_OAUTH_REDIRECT_URI') || '';
 
+console.log("Environment check:");
+console.log("- REDIRECT_URI configured as:", REDIRECT_URI);
+console.log("- GOOGLE_CLIENT_ID available:", !!GOOGLE_CLIENT_ID);
+console.log("- GOOGLE_CLIENT_SECRET available:", !!GOOGLE_CLIENT_SECRET);
+console.log("EXACT REDIRECT URI BEING USED:", REDIRECT_URI);
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -23,12 +29,38 @@ serve(async (req) => {
     })
   }
 
+  let parsedAction, parsedCode, parsedState, parsedError;
   const url = new URL(req.url);
-  const action = url.searchParams.get('action');
+
+  if (req.method === 'POST') {
+    try {
+      const body = await req.json();
+      console.log('Received POST request with body:', JSON.stringify({
+        action: body.action,
+        code: body.code ? `${body.code.substring(0, 10)}...` : 'missing',
+        state: body.state || 'missing'
+      }));
+      parsedAction = body.action;
+      parsedCode = body.code;
+      parsedState = body.state;
+      parsedError = body.error;
+    } catch (e) {
+      console.error('Error parsing JSON body:', e);
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+  } else {
+    parsedAction = url.searchParams.get('action');
+    parsedCode = url.searchParams.get('code');
+    parsedState = url.searchParams.get('state');
+    parsedError = url.searchParams.get('error');
+  }
 
   // Step 1: Generate authorization URL
-  if (action === 'authorize') {
-    const state = url.searchParams.get('state') || ''; // This should be the elementId
+  if (parsedAction === 'authorize') {
+    const state = parsedState || '';
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
@@ -39,6 +71,8 @@ serve(async (req) => {
     authUrl.searchParams.append('prompt', 'consent'); // Force to show consent screen to get refresh token
     authUrl.searchParams.append('state', state);
     
+    console.log("Authorization URL using redirect_uri:", REDIRECT_URI);
+    
     return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
@@ -46,10 +80,36 @@ serve(async (req) => {
   }
   
   // Step 2: Handle the callback from Google
-  if (action === 'callback') {
-    const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state'); // This should be the elementId
-    const error = url.searchParams.get('error');
+  if (parsedAction === 'callback') {
+    const code = parsedCode;
+    const state = parsedState;
+    const error = parsedError;
+    
+    console.log(`Callback processing:
+    - Method: ${req.method}
+    - Code: ${code ? `${code.substring(0, 10)}... (${code.length} chars)` : 'missing'}
+    - State: ${state || 'missing'}
+    - Error: ${error || 'none'}
+    - Timestamp: ${new Date().toISOString()}
+    `);
+    
+    // Add code reuse detection
+    const codeKey = code?.substring(0, 20) || '';
+    if (codeKey && global.usedCodes && global.usedCodes.has(codeKey)) {
+      console.error(`Authorization code has already been used: ${code.substring(0, 10)}...`);
+      return new Response(JSON.stringify({ 
+        error: 'Authorization code has already been used',
+        details: 'Each authorization code can only be used once. Please restart the authorization process.'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+    
+    // Initialize usedCodes if it doesn't exist
+    if (!global.usedCodes) {
+      global.usedCodes = new Set();
+    }
     
     if (error) {
       return new Response(JSON.stringify({ error }), {
@@ -74,6 +134,9 @@ serve(async (req) => {
       });
     }
     
+    console.log("Starting token exchange with code:", code.substring(0, 10) + "...");
+    console.log("Using redirect URI:", REDIRECT_URI);
+
     try {
       // Create a Supabase client with the auth header
       const supabaseClient = createClient(
@@ -95,6 +158,14 @@ serve(async (req) => {
       }
       
       // Exchange the authorization code for tokens
+      console.log(`Preparing token exchange request with code: ${code?.substring(0, 10)}...`);
+      console.log(`Token request parameters:
+        - redirect_uri: ${REDIRECT_URI}
+        - client_id: ${GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.substring(0, 5) + '...' : 'missing'}
+        - client_secret: ${GOOGLE_CLIENT_SECRET ? 'present' : 'missing'}
+        - grant_type: authorization_code
+      `);
+
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: {
@@ -109,17 +180,42 @@ serve(async (req) => {
         }),
       });
       
+      console.log(`Token response status: ${tokenResponse.status}`);
+      console.log(`Token response headers: ${JSON.stringify(Object.fromEntries([...tokenResponse.headers.entries()]))}`);
+      
       const tokenData = await tokenResponse.json();
       
       if (!tokenResponse.ok) {
+        console.error('Token exchange error details:', JSON.stringify(tokenData));
+        console.error('Full token exchange error context:', {
+          status: tokenResponse.status,
+          error: tokenData.error,
+          error_description: tokenData.error_description,
+          redirect_uri_used: REDIRECT_URI,
+          code_length: code?.length,
+          timestamp: new Date().toISOString()
+        });
+        
         return new Response(JSON.stringify({ 
           error: 'Failed to exchange authorization code for tokens',
-          details: tokenData
+          details: tokenData,
+          redirect_uri_used: REDIRECT_URI,
+          debug_info: {
+            timestamp: new Date().toISOString(),
+            code_length: code?.length,
+            code_prefix: code?.substring(0, 10) + '...',
+            has_client_id: !!GOOGLE_CLIENT_ID,
+            has_client_secret: !!GOOGLE_CLIENT_SECRET
+          }
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
         });
       }
+      
+      // Log success but not the actual tokens for security
+      console.log("Token exchange successful, received refresh_token:", !!tokenData.refresh_token);
+      console.log("Token exchange successful, received access_token:", !!tokenData.access_token);
       
       // Get the refresh token and access token
       const { refresh_token, access_token } = tokenData;
@@ -173,11 +269,19 @@ serve(async (req) => {
         status: 200,
       });
     } catch (error) {
-      console.error('Error in callback:', error);
-      return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      console.error('Exception during token exchange:', error);
+      return new Response(JSON.stringify({ 
+        error: 'Exception during token exchange',
+        details: error.message
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       });
+    } finally {
+      if (codeKey) {
+        global.usedCodes.add(codeKey);
+        console.log(`Added code to used codes cache: ${codeKey.substring(0, 10)}...`);
+      }
     }
   }
   
