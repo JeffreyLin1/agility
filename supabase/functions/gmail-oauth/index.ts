@@ -4,8 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // Define CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -19,6 +19,12 @@ console.log("- REDIRECT_URI configured as:", REDIRECT_URI);
 console.log("- GOOGLE_CLIENT_ID available:", !!GOOGLE_CLIENT_ID);
 console.log("- GOOGLE_CLIENT_SECRET available:", !!GOOGLE_CLIENT_SECRET);
 console.log("EXACT REDIRECT URI BEING USED:", REDIRECT_URI);
+
+// Simple in-memory cache to detect code reuse (will reset on function restart)
+const usedCodes = new Set();
+
+// Track successful exchanges by state parameter
+const successfulExchanges = new Set();
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -102,7 +108,7 @@ serve(async (req) => {
     
     // Add code reuse detection
     const codeKey = code?.substring(0, 20) || '';
-    if (codeKey && global.usedCodes && global.usedCodes.has(codeKey)) {
+    if (codeKey && usedCodes.has(codeKey)) {
       console.error(`Authorization code has already been used: ${code.substring(0, 10)}...`);
       return new Response(JSON.stringify({ 
         error: 'Authorization code has already been used',
@@ -111,11 +117,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
-    }
-    
-    // Initialize usedCodes if it doesn't exist
-    if (!global.usedCodes) {
-      global.usedCodes = new Set();
     }
     
     if (error) {
@@ -267,6 +268,25 @@ serve(async (req) => {
         });
       }
       
+      // Add this after the code reuse detection
+      if (state && successfulExchanges.has(state)) {
+        console.log(`Authorization already completed for state: ${state}`);
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: 'Gmail authorization already completed successfully',
+          alreadyProcessed: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      
+      // Then in your success handler (around line 268), add the state to successful exchanges
+      if (state) {
+        successfulExchanges.add(state);
+        console.log(`Added state to successful exchanges: ${state}`);
+      }
+      
       // Redirect to a success page or return success response
       return new Response(JSON.stringify({ 
         success: true,
@@ -286,7 +306,7 @@ serve(async (req) => {
       });
     } finally {
       if (codeKey) {
-        global.usedCodes.add(codeKey);
+        usedCodes.add(codeKey);
         console.log(`Added code to used codes cache: ${codeKey.substring(0, 10)}...`);
       }
     }

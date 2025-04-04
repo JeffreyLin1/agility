@@ -82,7 +82,12 @@ function CallbackHandler() {
           throw new Error(data.error || 'Failed to complete Gmail authorization');
         }
 
-        setStatus('Authorization successful!');
+        // Check if the authorization was already processed
+        if (data.alreadyProcessed) {
+          setStatus('Authorization already completed!');
+        } else {
+          setStatus('Authorization successful!');
+        }
         
         // Redirect back to the workflow page after a short delay
         setTimeout(() => {
@@ -134,7 +139,12 @@ function CallbackHandler() {
               throw new Error(data.error || 'Failed to complete Gmail authorization');
             }
 
-            setStatus('Authorization successful!');
+            // Check if the authorization was already processed
+            if (data.alreadyProcessed) {
+              setStatus('Authorization already completed!');
+            } else {
+              setStatus('Authorization successful!');
+            }
             
             setTimeout(() => {
               router.push('/workflow');
