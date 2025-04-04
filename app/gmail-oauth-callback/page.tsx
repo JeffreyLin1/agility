@@ -12,6 +12,11 @@ function CallbackHandler() {
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<any>(null);
   const [isWaitingForSession, setIsWaitingForSession] = useState(false);
+  const [debugInfo, setDebugInfo] = useState({
+    url: '',
+    searchParams: {},
+    sessionStatus: 'unknown'
+  });
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -59,6 +64,15 @@ function CallbackHandler() {
             })
           }
         );
+
+        // Log the request details for debugging
+        console.log("Request sent with:", {
+          url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/gmail-oauth`,
+          method: 'POST',
+          action: 'callback',
+          codeLength: code?.length,
+          statePresent: !!state
+        });
 
         const data = await response.json();
         console.log("Response:", data);
@@ -136,6 +150,17 @@ function CallbackHandler() {
     }
   }, [session, isWaitingForSession, searchParams, router]);
 
+  useEffect(() => {
+    // Capture debug information
+    if (typeof window !== 'undefined') {
+      setDebugInfo({
+        url: window.location.href,
+        searchParams: Object.fromEntries(new URLSearchParams(window.location.search).entries()),
+        sessionStatus: session ? 'authenticated' : 'not authenticated'
+      });
+    }
+  }, [session]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
@@ -180,6 +205,13 @@ function CallbackHandler() {
           <p>State: {searchParams.get('state') ? '✓ Present' : '✗ Missing'}</p>
           <p>Session: {session?.access_token ? '✓ Authenticated' : '✗ Not authenticated'}</p>
           <p>User: {session?.user?.email || 'Not available'}</p>
+        </div>
+
+        <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <h3 className="text-sm font-medium mb-2">Debug Information:</h3>
+          <pre className="text-xs overflow-auto max-h-40">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
         </div>
       </div>
     </div>

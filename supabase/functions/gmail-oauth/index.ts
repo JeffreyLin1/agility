@@ -58,6 +58,9 @@ serve(async (req) => {
     parsedError = url.searchParams.get('error');
   }
 
+  // Add this debugging right after parsing the action
+  console.log(`Action parsed from ${req.method} request: "${parsedAction}"`);
+
   // Step 1: Generate authorization URL
   if (parsedAction === 'authorize') {
     const state = parsedState || '';
@@ -80,16 +83,20 @@ serve(async (req) => {
   }
   
   // Step 2: Handle the callback from Google
-  if (parsedAction === 'callback') {
-    const code = parsedCode;
-    const state = parsedState;
-    const error = parsedError;
+  if (parsedAction === 'callback' || url.pathname.includes('callback')) {
+    // This will catch both explicit 'callback' actions and URLs that contain 'callback'
+    console.log("Callback action detected via URL or action parameter");
     
-    console.log(`Callback processing:
+    const code = parsedCode || url.searchParams.get('code');
+    const state = parsedState || url.searchParams.get('state');
+    const error = parsedError || url.searchParams.get('error');
+    
+    console.log(`Callback processing with enhanced detection:
     - Method: ${req.method}
     - Code: ${code ? `${code.substring(0, 10)}... (${code.length} chars)` : 'missing'}
     - State: ${state || 'missing'}
     - Error: ${error || 'none'}
+    - URL path: ${url.pathname}
     - Timestamp: ${new Date().toISOString()}
     `);
     
