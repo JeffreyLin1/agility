@@ -148,10 +148,12 @@ export default function WorkflowPage() {
   const [agents] = useState<Agent[]>(sampleAgents);
   const [workflow, setWorkflow] = useState<Workflow>(emptyWorkflow);
   const [isVisible, setIsVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(true);
+      setIsLoading(false);
     }, 100);
     
     return () => clearTimeout(timer);

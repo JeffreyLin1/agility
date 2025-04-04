@@ -4,27 +4,33 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // Define CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
 
-// Google OAuth configuration
-const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
-const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
-const REDIRECT_URI = Deno.env.get('GMAIL_OAUTH_REDIRECT_URI') || '';
+// Google OAuth2 configuration
+const GOOGLE_OAUTH2_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_OAUTH2_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
-console.log("Environment check:");
-console.log("- REDIRECT_URI configured as:", REDIRECT_URI);
-console.log("- GOOGLE_CLIENT_ID available:", !!GOOGLE_CLIENT_ID);
-console.log("- GOOGLE_CLIENT_SECRET available:", !!GOOGLE_CLIENT_SECRET);
-console.log("EXACT REDIRECT URI BEING USED:", REDIRECT_URI);
+// Gmail API scopes needed for sending emails
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/userinfo.email'
+].join(' ');
 
-// Simple in-memory cache to detect code reuse (will reset on function restart)
-const usedCodes = new Set();
-
-// Track successful exchanges by state parameter
-const successfulExchanges = new Set();
+// Encryption function for storing sensitive data
+function encryptApiKey(key: string, encryptionKey: string): string {
+  let result = '';
+  
+  for (let i = 0; i < key.length; i++) {
+    const charCode = key.charCodeAt(i) ^ encryptionKey.charCodeAt(i % encryptionKey.length);
+    result += String.fromCharCode(charCode);
+  }
+  
+  return btoa(result); // Base64 encode
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -35,320 +41,229 @@ serve(async (req) => {
     })
   }
 
-  let parsedAction, parsedCode, parsedState, parsedError;
-  const url = new URL(req.url);
-
-  if (req.method === 'POST') {
-    try {
-      const body = await req.json();
-      console.log('Received POST request with body:', JSON.stringify({
-        action: body.action,
-        code: body.code ? `${body.code.substring(0, 10)}...` : 'missing',
-        state: body.state || 'missing'
-      }));
-      parsedAction = body.action;
-      parsedCode = body.code;
-      parsedState = body.state;
-      parsedError = body.error;
-    } catch (e) {
-      console.error('Error parsing JSON body:', e);
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      });
-    }
-  } else {
-    parsedAction = url.searchParams.get('action');
-    parsedCode = url.searchParams.get('code');
-    parsedState = url.searchParams.get('state');
-    parsedError = url.searchParams.get('error');
-  }
-
-  // Add this debugging right after parsing the action
-  console.log(`Action parsed from ${req.method} request: "${parsedAction}"`);
-
-  // Step 1: Generate authorization URL
-  if (parsedAction === 'authorize') {
-    const state = parsedState || '';
-    
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
-    authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('scope', 'https://www.googleapis.com/auth/gmail.send');
-    authUrl.searchParams.append('access_type', 'offline');
-    authUrl.searchParams.append('prompt', 'consent'); // Force to show consent screen to get refresh token
-    authUrl.searchParams.append('state', state);
-    
-    console.log("Authorization URL using redirect_uri:", REDIRECT_URI);
-    
-    return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
-  }
-  
-  // Step 2: Handle the callback from Google
-  if (parsedAction === 'callback' || url.pathname.includes('callback')) {
-    // This will catch both explicit 'callback' actions and URLs that contain 'callback'
-    console.log("Callback action detected via URL or action parameter");
-    
-    const code = parsedCode || url.searchParams.get('code');
-    const state = parsedState || url.searchParams.get('state');
-    const error = parsedError || url.searchParams.get('error');
-    
-    console.log(`Callback processing with enhanced detection:
-    - Method: ${req.method}
-    - Code: ${code ? `${code.substring(0, 10)}... (${code.length} chars)` : 'missing'}
-    - State: ${state || 'missing'}
-    - Error: ${error || 'none'}
-    - URL path: ${url.pathname}
-    - Timestamp: ${new Date().toISOString()}
-    `);
-    
-    // Add code reuse detection
-    const codeKey = code?.substring(0, 20) || '';
-    if (codeKey && usedCodes.has(codeKey)) {
-      console.error(`Authorization code has already been used: ${code.substring(0, 10)}...`);
-      return new Response(JSON.stringify({ 
-        error: 'Authorization code has already been used',
-        details: 'Each authorization code can only be used once. Please restart the authorization process.'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      });
-    }
-    
-    if (error) {
-      return new Response(JSON.stringify({ error }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      });
-    }
-    
-    if (!code) {
-      return new Response(JSON.stringify({ error: 'Authorization code is missing' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      });
-    }
-    
+  try {
     // Get the authorization header
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Authorization header is required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 401,
-      });
+      })
+    }
+
+    // Create a Supabase client with the auth header
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
+
+    // Get the user from the auth header
+    const {
+      data: { user },
+    } = await supabaseClient.auth.getUser()
+
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Not authenticated' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    // Get OAuth2 credentials from environment variables
+    const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+    const redirectUri = Deno.env.get('GMAIL_OAUTH_REDIRECT_URI');
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      return new Response(JSON.stringify({ 
+        error: 'Google OAuth credentials not configured on the server' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
+
+    // Handle GET request for starting the OAuth flow
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      const action = url.searchParams.get('action');
+      const state = url.searchParams.get('state'); // Element ID to associate with the credentials
+
+      if (action !== 'authorize') {
+        return new Response(JSON.stringify({ error: 'Invalid action' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        })
+      }
+
+      // Generate the authorization URL
+      const authUrl = new URL(GOOGLE_OAUTH2_AUTH_URL);
+      authUrl.searchParams.append('client_id', clientId);
+      authUrl.searchParams.append('redirect_uri', redirectUri);
+      authUrl.searchParams.append('response_type', 'code');
+      authUrl.searchParams.append('scope', GMAIL_SCOPES);
+      authUrl.searchParams.append('access_type', 'offline');
+      authUrl.searchParams.append('prompt', 'consent'); // Force to get refresh token
+      
+      // Add state parameter to track the element ID
+      if (state) {
+        authUrl.searchParams.append('state', state);
+      }
+
+      return new Response(JSON.stringify({ 
+        authUrl: authUrl.toString() 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
     }
     
-    console.log("Starting token exchange with code:", code.substring(0, 10) + "...");
-    console.log("Using redirect URI:", REDIRECT_URI);
+    // Handle POST request for processing the callback
+    else if (req.method === 'POST') {
+      const { action, code, state } = await req.json();
 
-    try {
-      // Create a Supabase client with the auth header
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-        { global: { headers: { Authorization: authHeader } } }
-      );
-      
-      // Get the user from the auth header
-      const {
-        data: { user },
-      } = await supabaseClient.auth.getUser();
-      
-      if (!user) {
-        return new Response(JSON.stringify({ error: 'Not authenticated' }), {
+      if (action !== 'callback' || !code) {
+        return new Response(JSON.stringify({ 
+          error: 'Invalid request. Action and code are required.' 
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 401,
-        });
+          status: 400,
+        })
       }
-      
-      // Exchange the authorization code for tokens
-      console.log(`Preparing token exchange request with code: ${code?.substring(0, 10)}...`);
-      console.log(`Token request parameters:
-        - redirect_uri: ${REDIRECT_URI}
-        - client_id: ${GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.substring(0, 5) + '...' : 'missing'}
-        - client_secret: ${GOOGLE_CLIENT_SECRET ? 'present' : 'missing'}
-        - grant_type: authorization_code
-      `);
 
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      // Check if this authorization has already been processed
+      if (state) {
+        const { data: existingConfig } = await supabaseClient
+          .from('agent_configs')
+          .select('config')
+          .eq('user_id', user.id)
+          .eq('element_id', state)
+          .eq('agent_type', 'gmail_sender')
+          .maybeSingle();
+
+        if (existingConfig?.config?.refreshToken) {
+          return new Response(JSON.stringify({ 
+            success: true,
+            alreadyProcessed: true,
+            message: 'Gmail authorization already completed for this element'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          })
+        }
+      }
+
+      // Exchange the authorization code for tokens
+      const tokenResponse = await fetch(GOOGLE_OAUTH2_TOKEN_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
           code,
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: REDIRECT_URI,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
         }),
       });
-      
-      console.log(`Token response status: ${tokenResponse.status}`);
-      console.log(`Token response headers: ${JSON.stringify(Object.fromEntries([...tokenResponse.headers.entries()]))}`);
-      
+
       const tokenData = await tokenResponse.json();
-      
-      if (!tokenResponse.ok) {
-        console.error('Token exchange error details:', JSON.stringify(tokenData));
-        console.error('Full token exchange error context:', {
-          status: tokenResponse.status,
-          error: tokenData.error,
-          error_description: tokenData.error_description,
-          redirect_uri_used: REDIRECT_URI,
-          code_length: code?.length,
-          timestamp: new Date().toISOString()
-        });
-        
+
+      if (!tokenResponse.ok || !tokenData.refresh_token) {
         return new Response(JSON.stringify({ 
           error: 'Failed to exchange authorization code for tokens',
-          details: tokenData,
-          redirect_uri_used: REDIRECT_URI,
-          debug_info: {
-            timestamp: new Date().toISOString(),
-            code_length: code?.length,
-            code_prefix: code?.substring(0, 10) + '...',
-            has_client_id: !!GOOGLE_CLIENT_ID,
-            has_client_secret: !!GOOGLE_CLIENT_SECRET
-          }
+          details: tokenData
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
-        });
+        })
       }
-      
-      // Log success but not the actual tokens for security
-      console.log("Token exchange successful, received refresh_token:", !!tokenData.refresh_token);
-      console.log("Token exchange successful, received access_token:", !!tokenData.access_token);
-      
-      // Get the refresh token and access token
-      const { refresh_token, access_token } = tokenData;
-      
-      if (!refresh_token) {
-        return new Response(JSON.stringify({ 
-          error: 'No refresh token received. Make sure to set prompt=consent in the authorization URL.'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        });
-      }
-      
+
+      // Get user email from Google
+      const userInfoResponse = await fetch(GOOGLE_OAUTH2_USERINFO_URL, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+        },
+      });
+
+      const userInfo = await userInfoResponse.json();
+      const userEmail = userInfo.email;
+
       // Get the encryption key from environment variables
       const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key';
-      
-      // Encrypt the tokens
-      const encryptedClientId = encryptApiKey(GOOGLE_CLIENT_ID, encryptionKey);
-      const encryptedClientSecret = encryptApiKey(GOOGLE_CLIENT_SECRET, encryptionKey);
-      const encryptedRefreshToken = encryptApiKey(refresh_token, encryptionKey);
-      
-      // Store the encrypted tokens in Supabase
-      const { error } = await supabaseClient
-        .from('agent_configs')
-        .upsert({
-          user_id: user.id,
-          element_id: state, // This is the elementId passed in the state parameter
-          agent_type: 'gmail_sender',
-          config: { 
-            clientId: encryptedClientId,
-            clientSecret: encryptedClientSecret,
-            refreshToken: encryptedRefreshToken,
-            email: tokenData.email // Store the user's email if available
-          },
-          updated_at: new Date().toISOString(),
-        });
-      
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500,
-        });
-      }
-      
-      // Add this after the code reuse detection
-      if (state && successfulExchanges.has(state)) {
-        console.log(`Authorization already completed for state: ${state}`);
-        return new Response(JSON.stringify({ 
-          success: true,
-          message: 'Gmail authorization already completed successfully',
-          alreadyProcessed: true
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
-      }
-      
-      // Then in your success handler (around line 268), add the state to successful exchanges
+
+      // Encrypt the sensitive data
+      const encryptedClientId = encryptApiKey(clientId, encryptionKey);
+      const encryptedClientSecret = encryptApiKey(clientSecret, encryptionKey);
+      const encryptedRefreshToken = encryptApiKey(tokenData.refresh_token, encryptionKey);
+
+      // Store the credentials in the database
       if (state) {
-        successfulExchanges.add(state);
-        console.log(`Added state to successful exchanges: ${state}`);
+        // First check if a record already exists and delete it to avoid constraint violation
+        const { error: deleteError } = await supabaseClient
+          .from('agent_configs')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('element_id', state)
+          .eq('agent_type', 'gmail_sender');
+        
+        if (deleteError) {
+          console.error('Error deleting existing record:', deleteError);
+        }
+        
+        // Now insert the new record
+        const { error: insertError } = await supabaseClient
+          .from('agent_configs')
+          .insert({
+            user_id: user.id,
+            element_id: state,
+            agent_type: 'gmail_sender',
+            config: {
+              clientId: encryptedClientId,
+              clientSecret: encryptedClientSecret,
+              refreshToken: encryptedRefreshToken,
+              email: userEmail
+            },
+            updated_at: new Date().toISOString(),
+          });
+
+        if (insertError) {
+          return new Response(JSON.stringify({ 
+            error: 'Failed to save Gmail credentials',
+            details: insertError
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          })
+        }
       }
-      
-      // Redirect to a success page or return success response
+
       return new Response(JSON.stringify({ 
         success: true,
-        message: 'Gmail authorization successful'
+        email: userEmail
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      });
-    } catch (error) {
-      console.error('Exception during token exchange:', error);
-      return new Response(JSON.stringify({ 
-        error: 'Exception during token exchange',
-        details: error.message
-      }), {
+      })
+    }
+    
+    // Handle unsupported methods
+    else {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      });
-    } finally {
-      if (codeKey) {
-        usedCodes.add(codeKey);
-        console.log(`Added code to used codes cache: ${codeKey.substring(0, 10)}...`);
-      }
+        status: 405,
+      })
     }
-  }
-  
-  return new Response(JSON.stringify({ error: 'Invalid action' }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    status: 400,
-  });
-});
-
-// Encryption function (copied from your existing code)
-function encryptApiKey(apiKey: string, encryptionKey: string): string {
-  try {
-    let result = '';
-    
-    for (let i = 0; i < apiKey.length; i++) {
-      const charCode = apiKey.charCodeAt(i) ^ encryptionKey.charCodeAt(i % encryptionKey.length);
-      result += String.fromCharCode(charCode);
-    }
-    
-    return btoa(result); // Base64 encode
   } catch (error) {
-    console.error('Error encrypting key:', error);
-    return '';
+    console.error('Error in edge function:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      details: error.message
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    })
   }
-}
-
-// Decryption function (copied from your existing code)
-function decryptApiKey(encryptedKey: string, encryptionKey: string): string {
-  try {
-    const decoded = atob(encryptedKey); // Base64 decode
-    let result = '';
-    
-    for (let i = 0; i < decoded.length; i++) {
-      const charCode = decoded.charCodeAt(i) ^ encryptionKey.charCodeAt(i % encryptionKey.length);
-      result += String.fromCharCode(charCode);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Error decrypting key:', error);
-    return '';
-  }
-} 
+}) 
