@@ -21,6 +21,31 @@ function debug(message: string, data?: any) {
   }
 }
 
+// Function to decrypt API keys
+function decryptApiKey(encryptedKey: string, encryptionKey: string): string {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  
+  // Convert the encryption key to a Uint8Array
+  const keyData = encoder.encode(encryptionKey);
+  
+  // Decode the base64 encrypted key
+  const encryptedData = atob(encryptedKey);
+  const encryptedBytes = new Uint8Array(encryptedData.length);
+  for (let i = 0; i < encryptedData.length; i++) {
+    encryptedBytes[i] = encryptedData.charCodeAt(i);
+  }
+  
+  // Simple XOR decryption
+  const decryptedBytes = new Uint8Array(encryptedBytes.length);
+  for (let i = 0; i < encryptedBytes.length; i++) {
+    decryptedBytes[i] = encryptedBytes[i] ^ keyData[i % keyData.length];
+  }
+  
+  // Convert the decrypted bytes back to a string
+  return decoder.decode(decryptedBytes);
+}
+
 serve(async (req) => {
   debug('Request received');
   
@@ -100,27 +125,47 @@ serve(async (req) => {
       })
     }
 
-    // Get the Gmail credentials from Supabase
-    debug('Fetching credentials from database for elementId', elementId);
-    const { data, error } = await supabaseClient
+    // First, check if the agent is configured to use Gmail
+    debug('Checking if agent is configured for Gmail');
+    const { data: agentConfig, error: agentError } = await supabaseClient
       .from('agent_configs')
       .select('config')
       .eq('user_id', user.id)
       .eq('element_id', elementId)
       .eq('agent_type', 'gmail_reader')
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      debug('Error retrieving credentials', error);
+    if (agentError && agentError.code !== 'PGRST116') {
+      debug('Error retrieving agent config', agentError);
+      return new Response(JSON.stringify({ error: 'Failed to retrieve agent configuration' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
+
+    // If no config exists or gmail_authorized is not true, we'll still try to use the centralized credentials
+    // This allows agents to work even if they haven't been explicitly configured yet
+    debug('Agent config check complete, proceeding to fetch credentials');
+
+    // Get the Gmail credentials from the centralized table
+    debug('Fetching Gmail credentials from user_gmail_credentials table');
+    const { data: credentials, error: credentialsError } = await supabaseClient
+      .from('user_gmail_credentials')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (credentialsError) {
+      debug('Error retrieving credentials', credentialsError);
       return new Response(JSON.stringify({ error: 'Failed to retrieve Gmail credentials' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       })
     }
 
-    if (!data?.config) {
-      debug('No credentials found for element');
-      return new Response(JSON.stringify({ error: 'No Gmail credentials found for this element' }), {
+    if (!credentials) {
+      debug('No credentials found for user');
+      return new Response(JSON.stringify({ error: 'No Gmail credentials found for this user' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 404,
       })
@@ -131,9 +176,9 @@ serve(async (req) => {
     const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key';
 
     // Decrypt the credentials
-    const clientId = data.config.clientId ? decryptApiKey(data.config.clientId, encryptionKey) : null;
-    const clientSecret = data.config.clientSecret ? decryptApiKey(data.config.clientSecret, encryptionKey) : null;
-    const refreshToken = data.config.refreshToken ? decryptApiKey(data.config.refreshToken, encryptionKey) : null;
+    const clientId = credentials.client_id ? decryptApiKey(credentials.client_id, encryptionKey) : null;
+    const clientSecret = credentials.client_secret ? decryptApiKey(credentials.client_secret, encryptionKey) : null;
+    const refreshToken = credentials.refresh_token ? decryptApiKey(credentials.refresh_token, encryptionKey) : null;
 
     debug('Credentials decrypted', { 
       hasClientId: !!clientId, 
@@ -266,6 +311,38 @@ serve(async (req) => {
       
       debug('Processed messages', { count: messages.length });
       
+      // Store the output in the agent_outputs table
+      if (messages.length > 0) {
+        debug('Storing output in agent_outputs table');
+        const { error: outputError } = await supabaseClient
+          .from('agent_outputs')
+          .upsert({
+            user_id: user.id,
+            workflow_id: elementId.split('-')[0], // Assuming elementId format is "workflowId-elementId"
+            element_id: elementId,
+            output_data: { 
+              type: 'gmail_reader',
+              messages: messages,
+              metadata: {
+                fromEmail,
+                maxResults,
+                onlyUnread,
+                timestamp: new Date().toISOString()
+              }
+            },
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'workflow_id,element_id'
+          });
+
+        if (outputError) {
+          debug('Error storing output', outputError);
+          // Continue anyway, this shouldn't block the response
+        } else {
+          debug('Output stored successfully');
+        }
+      }
+
       return new Response(JSON.stringify({ 
         messages 
       }), {
@@ -296,22 +373,4 @@ serve(async (req) => {
       status: 500,
     })
   }
-})
-
-// Decryption function
-function decryptApiKey(encryptedKey: string, encryptionKey: string): string {
-  try {
-    const decoded = atob(encryptedKey); // Base64 decode
-    let result = '';
-    
-    for (let i = 0; i < decoded.length; i++) {
-      const charCode = decoded.charCodeAt(i) ^ encryptionKey.charCodeAt(i % encryptionKey.length);
-      result += String.fromCharCode(charCode);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Error decrypting key:', error instanceof Error ? error.message : 'Unknown error');
-    return '';
-  }
-} 
+}) 

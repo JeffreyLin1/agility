@@ -21,6 +21,31 @@ function debug(message: string, data?: any) {
   }
 }
 
+// Function to decrypt API keys
+function decryptApiKey(encryptedKey: string, encryptionKey: string): string {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  
+  // Convert the encryption key to a Uint8Array
+  const keyData = encoder.encode(encryptionKey);
+  
+  // Decode the base64 encrypted key
+  const encryptedData = atob(encryptedKey);
+  const encryptedBytes = new Uint8Array(encryptedData.length);
+  for (let i = 0; i < encryptedData.length; i++) {
+    encryptedBytes[i] = encryptedData.charCodeAt(i);
+  }
+  
+  // Simple XOR decryption
+  const decryptedBytes = new Uint8Array(encryptedBytes.length);
+  for (let i = 0; i < encryptedBytes.length; i++) {
+    decryptedBytes[i] = encryptedBytes[i] ^ keyData[i % keyData.length];
+  }
+  
+  // Convert the decrypted bytes back to a string
+  return decoder.decode(decryptedBytes);
+}
+
 serve(async (req) => {
   debug('Request received');
   
@@ -68,71 +93,94 @@ serve(async (req) => {
 
     // Parse the request body
     const { 
-      clientId, 
-      clientSecret, 
-      refreshToken, 
-      to, 
-      subject, 
-      body,
-      elementId
-    } = await req.json()
-
-    debug('Request parameters', { 
-      hasClientId: !!clientId, 
-      hasClientSecret: !!clientSecret, 
-      hasRefreshToken: !!refreshToken,
       elementId,
       to,
       subject,
-      bodyLength: body?.length
+      body,
+      clientId,
+      clientSecret,
+      refreshToken
+    } = await req.json()
+
+    debug('Request parameters', { 
+      elementId,
+      to,
+      subject,
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+      hasRefreshToken: !!refreshToken
     });
 
     // Validate required fields
-    if ((!clientId || !clientSecret || !refreshToken) && !elementId) {
-      return new Response(JSON.stringify({ 
-        error: 'Gmail credentials are required (either directly or via elementId)' 
-      }), {
+    if (!to) {
+      return new Response(JSON.stringify({ error: 'Recipient email is required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       })
     }
 
-    if (!to || !subject || !body) {
-      return new Response(JSON.stringify({ 
-        error: 'Email recipient, subject, and body are required' 
-      }), {
+    if (!subject) {
+      return new Response(JSON.stringify({ error: 'Email subject is required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       })
     }
 
-    // If elementId is provided but not credentials, fetch credentials from database
+    if (!body) {
+      return new Response(JSON.stringify({ error: 'Email body is required' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+
+    // Variables to hold the final credentials
     let finalClientId = clientId;
     let finalClientSecret = clientSecret;
     let finalRefreshToken = refreshToken;
 
+    // If credentials weren't provided directly, get them from the database
     if (elementId && (!clientId || !clientSecret || !refreshToken)) {
-      debug('Fetching credentials from database for elementId', elementId);
-      // Get the Gmail credentials from Supabase
-      const { data, error } = await supabaseClient
+      // First, check if the agent is configured to use Gmail
+      debug('Checking if agent is configured for Gmail');
+      const { data: agentConfig, error: agentError } = await supabaseClient
         .from('agent_configs')
         .select('config')
         .eq('user_id', user.id)
         .eq('element_id', elementId)
         .eq('agent_type', 'gmail_sender')
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        debug('Error retrieving credentials', error);
+      if (agentError && agentError.code !== 'PGRST116') {
+        debug('Error retrieving agent config', agentError);
+        return new Response(JSON.stringify({ error: 'Failed to retrieve agent configuration' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        })
+      }
+
+      // If no config exists or gmail_authorized is not true, we'll still try to use the centralized credentials
+      // This allows agents to work even if they haven't been explicitly configured yet
+      debug('Agent config check complete, proceeding to fetch credentials');
+
+      // Get the Gmail credentials from the centralized table
+      debug('Fetching Gmail credentials from user_gmail_credentials table');
+      const { data: credentials, error: credentialsError } = await supabaseClient
+        .from('user_gmail_credentials')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (credentialsError) {
+        debug('Error retrieving credentials', credentialsError);
         return new Response(JSON.stringify({ error: 'Failed to retrieve Gmail credentials' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500,
         })
       }
 
-      if (!data?.config) {
-        debug('No credentials found for element');
-        return new Response(JSON.stringify({ error: 'No Gmail credentials found for this element' }), {
+      if (!credentials) {
+        debug('No credentials found for user');
+        return new Response(JSON.stringify({ error: 'No Gmail credentials found for this user' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 404,
         })
@@ -143,22 +191,22 @@ serve(async (req) => {
       const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key';
 
       // Decrypt the credentials
-      finalClientId = data.config.clientId ? decryptApiKey(data.config.clientId, encryptionKey) : null;
-      finalClientSecret = data.config.clientSecret ? decryptApiKey(data.config.clientSecret, encryptionKey) : null;
-      finalRefreshToken = data.config.refreshToken ? decryptApiKey(data.config.refreshToken, encryptionKey) : null;
+      finalClientId = credentials.client_id ? decryptApiKey(credentials.client_id, encryptionKey) : null;
+      finalClientSecret = credentials.client_secret ? decryptApiKey(credentials.client_secret, encryptionKey) : null;
+      finalRefreshToken = credentials.refresh_token ? decryptApiKey(credentials.refresh_token, encryptionKey) : null;
 
       debug('Credentials decrypted', { 
         hasClientId: !!finalClientId, 
         hasClientSecret: !!finalClientSecret, 
         hasRefreshToken: !!finalRefreshToken 
       });
+    }
 
-      if (!finalClientId || !finalClientSecret || !finalRefreshToken) {
-        return new Response(JSON.stringify({ error: 'Invalid Gmail credentials' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        })
-      }
+    if (!finalClientId || !finalClientSecret || !finalRefreshToken) {
+      return new Response(JSON.stringify({ error: 'Invalid Gmail credentials' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
     }
 
     try {
@@ -260,22 +308,4 @@ serve(async (req) => {
       status: 500,
     })
   }
-})
-
-// Decryption function
-function decryptApiKey(encryptedKey: string, encryptionKey: string): string {
-  try {
-    const decoded = atob(encryptedKey); // Base64 decode
-    let result = '';
-    
-    for (let i = 0; i < decoded.length; i++) {
-      const charCode = decoded.charCodeAt(i) ^ encryptionKey.charCodeAt(i % encryptionKey.length);
-      result += String.fromCharCode(charCode);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Error decrypting key:', error instanceof Error ? error.message : 'Unknown error');
-    return '';
-  }
-} 
+}) 

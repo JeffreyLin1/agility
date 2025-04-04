@@ -26,6 +26,8 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
   const [isSaved, setIsSaved] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
   const [apiProvider, setApiProvider] = useState('openai'); // 'openai' or 'anthropic'
+  const [connectedAgentData, setConnectedAgentData] = useState<any[]>([]);
+  const [isLoadingConnections, setIsLoadingConnections] = useState(false);
   
   const { session } = useAuth();
   
@@ -76,6 +78,112 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
     };
     
     loadConfig();
+  }, [session, elementId]);
+  
+  // Load connected agent data
+  useEffect(() => {
+    const fetchConnectedAgentData = async () => {
+      if (!session?.access_token || !elementId) return;
+      
+      setIsLoadingConnections(true);
+      
+      try {
+        // Get the workflow ID from the element ID (assuming format is "workflowId-elementId")
+        const workflowId = elementId.split('-')[0];
+        
+        // First, get all connections where this element is the target
+        const connectionsResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections?workflowId=${workflowId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+        
+        if (!connectionsResponse.ok) {
+          throw new Error('Failed to fetch connections');
+        }
+        
+        const connectionsData = await connectionsResponse.json();
+        const connections = connectionsData.connections || [];
+        
+        // Filter connections where this element is the target
+        const incomingConnections = connections.filter(
+          (conn: any) => conn.target_element_id === elementId
+        );
+        
+        if (incomingConnections.length === 0) {
+          setConnectedAgentData([]);
+          return;
+        }
+        
+        // Get the source element IDs
+        const sourceElementIds = incomingConnections.map((conn: any) => conn.source_element_id);
+        
+        // Fetch agent outputs for these source elements
+        const outputsResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              workflowId,
+              elementIds: sourceElementIds,
+            }),
+          }
+        );
+        
+        if (!outputsResponse.ok) {
+          throw new Error('Failed to fetch agent outputs');
+        }
+        
+        const outputsData = await outputsResponse.json();
+        setConnectedAgentData(outputsData.outputs || []);
+        
+        // If we have Gmail Reader data, update the prompt
+        const gmailReaderOutputs = outputsData.outputs.filter(
+          (output: any) => output.output_data.type === 'gmail_reader'
+        );
+        
+        if (gmailReaderOutputs.length > 0) {
+          // Create a formatted string of email data
+          let emailContent = "Here are the emails I've read:\n\n";
+          
+          gmailReaderOutputs.forEach((output: any) => {
+            const messages = output.output_data.messages || [];
+            
+            messages.forEach((message: any, index: number) => {
+              emailContent += `Email ${index + 1}:\n`;
+              emailContent += `From: ${message.from}\n`;
+              emailContent += `Subject: ${message.subject}\n`;
+              emailContent += `Date: ${message.date}\n`;
+              emailContent += `Content: ${message.body || message.snippet}\n\n`;
+            });
+          });
+          
+          // Update the prompt with the email content
+          setPrompt(prevPrompt => {
+            // If there's already content, append to it
+            if (prevPrompt.trim()) {
+              return `${emailContent}\n\nPlease analyze the above emails and respond to the following:\n\n${prevPrompt}`;
+            }
+            // Otherwise, just set a default prompt
+            return `${emailContent}\n\nPlease analyze these emails and provide a summary of their content.`;
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching connected agent data:', error);
+      } finally {
+        setIsLoadingConnections(false);
+      }
+    };
+    
+    fetchConnectedAgentData();
   }, [session, elementId]);
   
   // Save the API key and model using the Edge Function
@@ -163,7 +271,35 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           throw new Error(data.error?.message || 'Failed to generate text');
         }
         
-        setResponse(data.choices[0]?.message?.content || 'No response generated');
+        const generatedText = data.choices[0]?.message?.content || 'No response generated';
+        setResponse(generatedText);
+        
+        // Store the output for other agents to use
+        if (session?.access_token) {
+          const workflowId = elementId.split('-')[0];
+          
+          await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              action: 'save',
+              workflowId,
+              elementId,
+              outputData: {
+                type: 'text_generator',
+                text: generatedText,
+                metadata: {
+                  model: selectedModel,
+                  prompt,
+                  timestamp: new Date().toISOString()
+                }
+              }
+            })
+          });
+        }
       } else if (apiProvider === 'anthropic') {
         // Call Anthropic API
         response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -186,7 +322,35 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           throw new Error(data.error?.message || 'Failed to generate text');
         }
         
-        setResponse(data.content[0]?.text || 'No response generated');
+        const generatedText = data.content[0]?.text || 'No response generated';
+        setResponse(generatedText);
+        
+        // Store the output for other agents to use
+        if (session?.access_token) {
+          const workflowId = elementId.split('-')[0];
+          
+          await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              action: 'save',
+              workflowId,
+              elementId,
+              outputData: {
+                type: 'text_generator',
+                text: generatedText,
+                metadata: {
+                  model: selectedModel,
+                  prompt,
+                  timestamp: new Date().toISOString()
+                }
+              }
+            })
+          });
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Failed to test agent');
@@ -202,6 +366,22 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         <p className="text-sm text-gray-600">Configure your Text Generator agent</p>
       </div>
       
+      {/* Connected Agent Data */}
+      {connectedAgentData.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <div className="flex items-center mb-2">
+            <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium text-blue-800">Connected Agent Data Available</span>
+          </div>
+          <p className="text-sm text-blue-700">
+            This agent is receiving data from {connectedAgentData.length} connected agent(s). 
+            The prompt has been pre-filled with this data.
+          </p>
+        </div>
+      )}
+      
       {/* Model Selection */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -210,19 +390,14 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         <select
           value={selectedModel}
           onChange={(e) => setSelectedModel(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         >
-          {AVAILABLE_MODELS.map(model => (
+          {AVAILABLE_MODELS.map((model) => (
             <option key={model.id} value={model.id}>
               {model.name}
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-gray-500">
-          {apiProvider === 'openai' 
-            ? 'Requires OpenAI API key' 
-            : 'Requires Anthropic API key'}
-        </p>
       </div>
       
       {/* API Key Input */}
@@ -230,39 +405,42 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {apiProvider === 'openai' ? 'OpenAI API Key' : 'Anthropic API Key'}
         </label>
-        <div className="relative">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={apiProvider === 'openai' ? 'sk-...' : 'sk-ant-...'}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-          />
-        </div>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={`Enter your ${apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'} API key`}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        />
         <div className="mt-2 flex justify-end">
           <button
             onClick={saveApiKey}
-            disabled={isSaving}
-            className={`px-3 py-1 text-sm font-medium rounded-md bg-black text-white hover:bg-gray-800 ${
-              isSaving ? 'opacity-50 cursor-not-allowed' : ''
+            disabled={isSaving || !apiKey.trim()}
+            className={`px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
+              (isSaving || !apiKey.trim()) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {isSaving ? 'Saving...' : isSaved ? 'Saved!' : 'Save Configuration'}
+            {isSaving ? 'Saving...' : 'Save API Key'}
           </button>
         </div>
+        {isSaved && (
+          <div className="mt-2 text-sm text-green-600">
+            API key saved successfully!
+          </div>
+        )}
       </div>
       
       {/* Prompt Input */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Test Prompt
+          Prompt
         </label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your prompt here..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
+          placeholder="Enter your prompt here"
+          rows={6}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
       
@@ -270,22 +448,12 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       <div className="mb-4">
         <button
           onClick={testAgent}
-          disabled={isLoading}
-          className={`w-full px-4 py-2 bg-black text-white font-medium rounded-md hover:bg-gray-800 ${
-            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+          disabled={isLoading || !apiKey.trim() || !prompt.trim()}
+          className={`w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
+            (isLoading || !apiKey.trim() || !prompt.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
-          {isLoading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Testing...
-            </span>
-          ) : (
-            'Test Agent'
-          )}
+          {isLoading ? 'Generating...' : 'Generate Text'}
         </button>
       </div>
       
@@ -298,12 +466,10 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       
       {/* Response Output */}
       {response && (
-        <div className="mb-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Response
-          </label>
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md max-h-48 overflow-y-auto">
-            <p className="text-sm whitespace-pre-wrap text-black">{response}</p>
+        <div className="mb-4">
+          <h3 className="text-md font-medium mb-2">Generated Text</h3>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md whitespace-pre-line">
+            {response}
           </div>
         </div>
       )}
