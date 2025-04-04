@@ -88,12 +88,9 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       setIsLoadingConnections(true);
       
       try {
-        // Get the workflow ID from the element ID (assuming format is "workflowId-elementId")
-        const workflowId = elementId.split('-')[0];
-        
         // First, get all connections where this element is the target
         const connectionsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections?workflowId=${workflowId}`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections?workflowId=${elementId.split('-')[0]}`,
           {
             method: 'GET',
             headers: {
@@ -120,9 +117,11 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         }
         
         // Get the source element IDs
-        const sourceElementIds = incomingConnections.map((conn: any) => conn.source_element_id);
+        const sourceElementIds = incomingConnections.map(
+          (conn: any) => conn.source_element_id
+        );
         
-        // Fetch agent outputs for these source elements
+        // Fetch outputs from these source elements
         const outputsResponse = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
           {
@@ -132,7 +131,7 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
               'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
-              workflowId,
+              workflowId: elementId.split('-')[0],
               elementIds: sourceElementIds,
             }),
           }
@@ -144,40 +143,8 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         
         const outputsData = await outputsResponse.json();
         setConnectedAgentData(outputsData.outputs || []);
-        
-        // If we have Gmail Reader data, update the prompt
-        const gmailReaderOutputs = outputsData.outputs.filter(
-          (output: any) => output.output_data.type === 'gmail_reader'
-        );
-        
-        if (gmailReaderOutputs.length > 0) {
-          // Create a formatted string of email data
-          let emailContent = "Here are the emails I've read:\n\n";
-          
-          gmailReaderOutputs.forEach((output: any) => {
-            const messages = output.output_data.messages || [];
-            
-            messages.forEach((message: any, index: number) => {
-              emailContent += `Email ${index + 1}:\n`;
-              emailContent += `From: ${message.from}\n`;
-              emailContent += `Subject: ${message.subject}\n`;
-              emailContent += `Date: ${message.date}\n`;
-              emailContent += `Content: ${message.body || message.snippet}\n\n`;
-            });
-          });
-          
-          // Update the prompt with the email content
-          setPrompt(prevPrompt => {
-            // If there's already content, append to it
-            if (prevPrompt.trim()) {
-              return `${emailContent}\n\nPlease analyze the above emails and respond to the following:\n\n${prevPrompt}`;
-            }
-            // Otherwise, just set a default prompt
-            return `${emailContent}\n\nPlease analyze these emails and provide a summary of their content.`;
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching connected agent data:', error);
+      } catch (err) {
+        console.error('Error fetching connected agent data:', err);
       } finally {
         setIsLoadingConnections(false);
       }
@@ -232,21 +199,41 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
   };
   
   const testAgent = async () => {
-    if (!apiKey.trim()) {
-      setError('API key is required');
-      return;
-    }
-    
-    if (!prompt.trim()) {
-      setError('Prompt is required');
-      return;
-    }
-    
     setIsLoading(true);
     setError(null);
     setResponse(null);
     
     try {
+      // Prepare the prompt with connected agent data
+      let enhancedPrompt = prompt;
+      
+      // Process connected agent data
+      if (connectedAgentData.length > 0) {
+        for (const output of connectedAgentData) {
+          if (output.output_data.type === 'gmail_reader') {
+            // For Gmail Reader, append email content to the prompt
+            const messages = output.output_data.messages;
+            
+            if (messages && messages.length > 0) {
+              // Create a formatted string of email data
+              let emailContent = "Here are the emails I've read:\n\n";
+              
+              messages.forEach((message: any, index: number) => {
+                emailContent += `Email ${index + 1}:\n`;
+                emailContent += `From: ${message.from}\n`;
+                emailContent += `Subject: ${message.subject}\n`;
+                emailContent += `Date: ${message.date}\n`;
+                emailContent += `Content: ${message.body || message.snippet}\n\n`;
+              });
+              
+              // Append to the prompt
+              enhancedPrompt = `${emailContent}\n\n${enhancedPrompt}`;
+            }
+          }
+          // Add more agent types here as needed
+        }
+      }
+      
       let response;
       let data;
       
@@ -260,7 +247,7 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           },
           body: JSON.stringify({
             model: selectedModel,
-            messages: [{ role: 'user', content: prompt }],
+            messages: [{ role: 'user', content: enhancedPrompt }],
             max_tokens: 500
           })
         });
@@ -274,11 +261,12 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         const generatedText = data.choices[0]?.message?.content || 'No response generated';
         setResponse(generatedText);
         
-        // Store the output for other agents to use
-        if (session?.access_token) {
-          const workflowId = elementId.split('-')[0];
-          
-          await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`, {
+        // After generating text, store the output
+        const workflowId = elementId.split('-')[0];
+        
+        const outputResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
+          {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -293,12 +281,16 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
                 text: generatedText,
                 metadata: {
                   model: selectedModel,
-                  prompt,
+                  prompt: enhancedPrompt,
                   timestamp: new Date().toISOString()
                 }
               }
             })
-          });
+          }
+        );
+        
+        if (!outputResponse.ok) {
+          console.warn('Failed to store agent output, but continuing anyway');
         }
       } else if (apiProvider === 'anthropic') {
         // Call Anthropic API
@@ -311,7 +303,7 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           },
           body: JSON.stringify({
             model: selectedModel,
-            messages: [{ role: 'user', content: prompt }],
+            messages: [{ role: 'user', content: enhancedPrompt }],
             max_tokens: 500
           })
         });
@@ -325,11 +317,12 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         const generatedText = data.content[0]?.text || 'No response generated';
         setResponse(generatedText);
         
-        // Store the output for other agents to use
-        if (session?.access_token) {
-          const workflowId = elementId.split('-')[0];
-          
-          await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`, {
+        // After generating text, store the output
+        const workflowId = elementId.split('-')[0];
+        
+        const outputResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
+          {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -344,12 +337,16 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
                 text: generatedText,
                 metadata: {
                   model: selectedModel,
-                  prompt,
+                  prompt: enhancedPrompt,
                   timestamp: new Date().toISOString()
                 }
               }
             })
-          });
+          }
+        );
+        
+        if (!outputResponse.ok) {
+          console.warn('Failed to store agent output, but continuing anyway');
         }
       }
     } catch (err: any) {
@@ -368,17 +365,19 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       
       {/* Connected Agent Data */}
       {connectedAgentData.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-center mb-2">
-            <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-            </svg>
-            <span className="font-medium text-blue-800">Connected Agent Data Available</span>
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-md">
+          <div className="font-medium mb-1">Connected Agent Data Available</div>
+          <div className="text-sm">
+            This agent will use data from {connectedAgentData.length} connected agent(s).
+            {connectedAgentData.map((output, index) => (
+              <div key={index} className="mt-1">
+                • {output.output_data.type === 'gmail_reader' ? 'Gmail Reader' : output.output_data.type}: 
+                {output.output_data.type === 'gmail_reader' 
+                  ? ` ${output.output_data.messages?.length || 0} emails` 
+                  : ' data available'}
+              </div>
+            ))}
           </div>
-          <p className="text-sm text-blue-700">
-            This agent is receiving data from {connectedAgentData.length} connected agent(s). 
-            The prompt has been pre-filled with this data.
-          </p>
         </div>
       )}
       
