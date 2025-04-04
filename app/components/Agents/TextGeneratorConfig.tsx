@@ -264,33 +264,37 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         // After generating text, store the output
         const workflowId = elementId.split('-')[0];
         
-        const outputResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-              action: 'save',
-              workflowId,
-              elementId,
-              outputData: {
-                type: 'text_generator',
-                text: generatedText,
-                metadata: {
-                  model: selectedModel,
-                  prompt: enhancedPrompt,
-                  timestamp: new Date().toISOString()
+        if (session?.access_token) {
+          const outputResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({
+                action: 'save',
+                workflowId,
+                elementId,
+                outputData: {
+                  type: 'text_generator',
+                  text: generatedText,
+                  metadata: {
+                    model: selectedModel,
+                    prompt: enhancedPrompt,
+                    timestamp: new Date().toISOString()
+                  }
                 }
-              }
-            })
+              })
+            }
+          );
+          
+          if (!outputResponse.ok) {
+            console.warn('Failed to store agent output, but continuing anyway');
           }
-        );
-        
-        if (!outputResponse.ok) {
-          console.warn('Failed to store agent output, but continuing anyway');
+        } else {
+          console.warn('Session not available, skipping output storage');
         }
       } else if (apiProvider === 'anthropic') {
         // Call Anthropic API
@@ -320,33 +324,37 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         // After generating text, store the output
         const workflowId = elementId.split('-')[0];
         
-        const outputResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-              action: 'save',
-              workflowId,
-              elementId,
-              outputData: {
-                type: 'text_generator',
-                text: generatedText,
-                metadata: {
-                  model: selectedModel,
-                  prompt: enhancedPrompt,
-                  timestamp: new Date().toISOString()
+        if (session?.access_token) {
+          const outputResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({
+                action: 'save',
+                workflowId,
+                elementId,
+                outputData: {
+                  type: 'text_generator',
+                  text: generatedText,
+                  metadata: {
+                    model: selectedModel,
+                    prompt: enhancedPrompt,
+                    timestamp: new Date().toISOString()
+                  }
                 }
-              }
-            })
+              })
+            }
+          );
+          
+          if (!outputResponse.ok) {
+            console.warn('Failed to store agent output, but continuing anyway');
           }
-        );
-        
-        if (!outputResponse.ok) {
-          console.warn('Failed to store agent output, but continuing anyway');
+        } else {
+          console.warn('Session not available, skipping output storage');
         }
       }
     } catch (err: any) {
@@ -363,7 +371,7 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         <p className="text-sm text-gray-600">Configure your Text Generator agent</p>
       </div>
       
-      {/* Connected Agent Data */}
+      {/* Connected Agent Data Indicator */}
       {connectedAgentData.length > 0 && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-md">
           <div className="font-medium mb-1">Connected Agent Data Available</div>
