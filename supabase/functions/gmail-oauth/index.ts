@@ -217,7 +217,7 @@ serve(async (req) => {
       const encryptedClientSecret = encryptApiKey(clientSecret, encryptionKey);
       const encryptedRefreshToken = encryptApiKey(tokenData.refresh_token, encryptionKey);
 
-      // Store the credentials in the centralized table
+      // Store the credentials in the user_gmail_credentials table
       const { error: insertError } = await supabaseClient
         .from('user_gmail_credentials')
         .upsert({
@@ -227,6 +227,8 @@ serve(async (req) => {
           refresh_token: encryptedRefreshToken,
           email: userEmail,
           updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id'
         });
 
       if (insertError) {

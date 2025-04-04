@@ -15,6 +15,8 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   
   const { session } = useAuth();
   
@@ -24,15 +26,14 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
       if (!session?.access_token) return;
       
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-api-keys`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
           },
           body: JSON.stringify({
-            action: 'get',
-            keyType: 'gmail'
+            action: 'get-credentials'
           })
         });
         
@@ -49,6 +50,85 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
     
     checkAuthorization();
   }, [session]);
+
+  // Load saved configuration
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (!session?.access_token) return;
+      
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action: 'get-config',
+            elementId,
+            agentType: 'gmail_reader'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.config) {
+          if (data.config.fromEmail) setFromEmail(data.config.fromEmail);
+          if (data.config.maxResults) setMaxResults(data.config.maxResults);
+          if (data.config.onlyUnread !== undefined) setOnlyUnread(data.config.onlyUnread);
+        }
+      } catch (err) {
+        console.log('No saved configuration found or error loading configuration');
+      }
+    };
+    
+    loadConfig();
+  }, [session, elementId]);
+  
+  // Save configuration
+  const saveConfiguration = async () => {
+    if (!session?.access_token) {
+      setError('You must be logged in to save configuration');
+      return;
+    }
+    
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'save-config',
+          elementId,
+          agentType: 'gmail_reader',
+          config: {
+            fromEmail: fromEmail.trim(),
+            maxResults,
+            onlyUnread,
+            gmail_authorized: isAuthorized
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+      
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   // Start the OAuth flow
   const authorizeGmail = async () => {
@@ -210,6 +290,26 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
           />
           <label htmlFor="onlyUnread" className="ml-2 text-sm font-medium text-black">Only show unread emails</label>
         </div>
+        
+        {/* Save Configuration Button */}
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={saveConfiguration}
+            disabled={isSaving || !fromEmail.trim()}
+            className={`px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 ${
+              (isSaving || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isSaving ? 'Saving...' : 'Save Configuration'}
+          </button>
+        </div>
+        
+        {/* Save Success Message */}
+        {isSaved && (
+          <div className="mt-2 text-sm text-green-600">
+            Configuration saved successfully!
+          </div>
+        )}
       </div>
       
       {/* Action Button */}

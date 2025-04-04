@@ -76,14 +76,15 @@ serve(async (req) => {
       })
     }
 
-    // Get the request body
-    const { action, elementId, apiKey, model, keyType } = await req.json()
+    // Get the request body - only parse it once
+    const requestBody = await req.json();
+    const { action, elementId, apiKey, model, keyType, prompt } = requestBody;
     const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key'
 
     if (action === 'save') {
       // Check if this is a Gmail configuration
       if (keyType === 'gmail') {
-        const { clientId, clientSecret, refreshToken } = await req.json();
+        const { clientId, clientSecret, refreshToken } = requestBody;
         
         if (!clientId || !clientSecret || !refreshToken) {
           return new Response(JSON.stringify({ error: 'All Gmail credentials are required' }), {
@@ -110,6 +111,8 @@ serve(async (req) => {
               refreshToken: encryptedRefreshToken
             },
             updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id,element_id'  // Specify the columns for conflict detection
           })
         
         if (error) {
@@ -144,9 +147,12 @@ serve(async (req) => {
           agent_type: 'text_generator',
           config: { 
             api_key: encryptedKey,
-            model: model || 'gpt-3.5-turbo' 
+            model: model || 'gpt-3.5-turbo',
+            prompt: prompt || ''
           },
           updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,element_id'  // Specify the columns for conflict detection
         })
 
       if (error) {
@@ -234,7 +240,8 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         apiKey: decryptedKey,
-        model: data.config.model || 'gpt-3.5-turbo'
+        model: data.config.model || 'gpt-3.5-turbo',
+        prompt: data.config.prompt || ''
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,

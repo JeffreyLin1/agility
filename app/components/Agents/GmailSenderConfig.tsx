@@ -15,6 +15,8 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
   const [response, setResponse] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   
   const { session } = useAuth();
   
@@ -24,15 +26,14 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
       if (!session?.access_token) return;
       
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-api-keys`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
           },
           body: JSON.stringify({
-            action: 'get',
-            keyType: 'gmail'
+            action: 'get-credentials'
           })
         });
         
@@ -49,6 +50,86 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
     
     checkAuthorization();
   }, [session]);
+  
+  // Load saved configuration
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (!session?.access_token) return;
+      
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action: 'get-config',
+            elementId,
+            agentType: 'gmail_sender'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.config) {
+          // Load saved test email settings if they exist
+          if (data.config.testRecipient) setTestRecipient(data.config.testRecipient);
+          if (data.config.testSubject) setTestSubject(data.config.testSubject);
+          if (data.config.testBody) setTestBody(data.config.testBody);
+        }
+      } catch (err) {
+        console.log('No saved configuration found or error loading configuration');
+      }
+    };
+    
+    loadConfig();
+  }, [session, elementId]);
+  
+  // Save configuration
+  const saveConfiguration = async () => {
+    if (!session?.access_token) {
+      setError('You must be logged in to save configuration');
+      return;
+    }
+    
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-gmail-credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'save-config',
+          elementId,
+          agentType: 'gmail_sender',
+          config: {
+            testRecipient: testRecipient.trim(),
+            testSubject: testSubject.trim(),
+            testBody: testBody.trim(),
+            gmail_authorized: isAuthorized
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+      
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   // Start the OAuth flow
   const authorizeGmail = async () => {
@@ -135,6 +216,9 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
       }
       
       setResponse(`Email sent successfully to ${testRecipient}`);
+      
+      // Save the configuration after successful test
+      await saveConfiguration();
     } catch (err: any) {
       setError(err.message || 'Failed to send email');
     } finally {
@@ -144,7 +228,7 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4">Gmail Sender Configuration</h2>
+      <h2 className="text-lg font-semibold mb-4 text-black">Gmail Sender Configuration</h2>
       
       {/* Authorization Status */}
       <div className={`mb-4 p-4 rounded-md border ${isAuthorized ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
@@ -218,6 +302,24 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
         </div>
       </div>
       
+      {/* Save Configuration Button */}
+      <div className="mb-4">
+        <button
+          onClick={saveConfiguration}
+          disabled={isSaving}
+          className={`w-full px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 ${
+            isSaving ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSaving ? 'Saving...' : 'Save Configuration'}
+        </button>
+        {isSaved && (
+          <div className="mt-2 text-sm text-green-600">
+            Configuration saved successfully!
+          </div>
+        )}
+      </div>
+      
       {/* Action Button */}
       <div className="mb-4">
         <button
@@ -253,9 +355,9 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
         </div>
       )}
       
-      {/* Response Output */}
+      {/* Success Message */}
       {response && (
-        <div className="mb-2 p-3 bg-green-100 border border-green-300 text-green-800 rounded-md">
+        <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-800 rounded-md">
           <div className="flex">
             <svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />

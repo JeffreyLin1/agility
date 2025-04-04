@@ -155,7 +155,19 @@ export default function WorkflowNode({
     }
   };
   
-  // Add this function to handle node click
+  // Add these handlers to track drag state
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+  
+  const handleDragEnd = () => {
+    // Use setTimeout to ensure this runs after the click handler
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 0);
+  };
+  
+  // Modify the click handler to check if we're dragging
   const handleNodeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -164,6 +176,11 @@ export default function WorkflowNode({
       if (onConnectionEnd) {
         onConnectionEnd(element.id);
       }
+      return;
+    }
+    
+    // Don't open config if this was the end of a drag operation
+    if (isDragging) {
       return;
     }
     
@@ -200,6 +217,8 @@ export default function WorkflowNode({
         onMouseDown={handleMouseDown}
         onClick={handleNodeClick}
         onMouseUp={handleNodeMouseUp}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
         {/* Connection handle */}
         <div 

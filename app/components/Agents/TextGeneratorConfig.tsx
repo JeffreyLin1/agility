@@ -71,6 +71,10 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         if (data.model) {
           setSelectedModel(data.model);
         }
+        
+        if (data.prompt) {
+          setPrompt(data.prompt);
+        }
       } catch (err) {
         // If no key is found, that's okay
         console.log('No saved API key found or error loading key');
@@ -161,15 +165,15 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
     fetchConnectedAgentData();
   }, [session, elementId]);
   
-  // Save the API key and model using the Edge Function
-  const saveApiKey = async () => {
+  // Save the configuration (API key, model, and prompt) using the Edge Function
+  const saveConfiguration = async () => {
     if (!apiKey.trim()) {
       setError('API key is required');
       return;
     }
     
     if (!session?.access_token) {
-      setError('You must be logged in to save an API key');
+      setError('You must be logged in to save configuration');
       return;
     }
     
@@ -187,20 +191,21 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           action: 'save',
           elementId,
           apiKey,
-          model: selectedModel
+          model: selectedModel,
+          prompt: prompt
         })
       });
       
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save API key');
+        throw new Error(data.error || 'Failed to save configuration');
       }
       
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err: any) {
-      setError(err.message || 'Failed to save API key');
+      setError(err.message || 'Failed to save configuration');
     } finally {
       setIsSaving(false);
     }
@@ -421,22 +426,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           placeholder={`Enter your ${apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'} API key`}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
-        <div className="mt-2 flex justify-end">
-          <button
-            onClick={saveApiKey}
-            disabled={isSaving || !apiKey.trim()}
-            className={`px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
-              (isSaving || !apiKey.trim()) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSaving ? 'Saving...' : 'Save API Key'}
-          </button>
-        </div>
-        {isSaved && (
-          <div className="mt-2 text-sm text-green-600">
-            API key saved successfully!
-          </div>
-        )}
       </div>
       
       {/* Prompt Input */}
@@ -449,8 +438,26 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Enter your prompt here"
           rows={6}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
         />
+      </div>
+      
+      {/* Save Configuration Button */}
+      <div className="mb-4">
+        <button
+          onClick={saveConfiguration}
+          disabled={isSaving || !apiKey.trim()}
+          className={`w-full px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 ${
+            (isSaving || !apiKey.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSaving ? 'Saving...' : 'Save Configuration'}
+        </button>
+        {isSaved && (
+          <div className="mt-2 text-sm text-green-600">
+            Configuration saved successfully!
+          </div>
+        )}
       </div>
       
       {/* Test Button */}
