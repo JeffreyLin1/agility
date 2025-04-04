@@ -32,14 +32,13 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
           },
           body: JSON.stringify({
             action: 'get',
-            elementId,
             keyType: 'gmail'
           })
         });
         
         const data = await response.json();
         
-        if (response.ok && data.refreshToken) {
+        if (response.ok && data.isAuthorized) {
           setIsAuthorized(true);
           setUserEmail(data.email || 'Your Gmail Account');
         }
@@ -49,7 +48,7 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
     };
     
     checkAuthorization();
-  }, [session, elementId]);
+  }, [session]);
   
   // Start the OAuth flow
   const authorizeGmail = async () => {
@@ -83,10 +82,15 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
     }
   };
   
-  // Read emails from a specific sender
+  // Read emails from Gmail
   const readEmails = async () => {
+    if (!session?.access_token) {
+      setError('You must be logged in to read emails');
+      return;
+    }
+    
     if (!isAuthorized) {
-      setError('You must authorize Gmail before reading emails');
+      setError('You must authorize Gmail first');
       return;
     }
     
@@ -100,16 +104,15 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
     setMessages([]);
     
     try {
-      // Call your Edge Function to read emails
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/read-gmail`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           elementId,
-          fromEmail,
+          fromEmail: fromEmail.trim(),
           maxResults,
           onlyUnread
         })
@@ -122,100 +125,72 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
       }
       
       setMessages(data.messages || []);
-      
-      if (data.messages.length === 0) {
-        setError(`No emails found from ${fromEmail}`);
-      }
     } catch (err: any) {
       setError(err.message || 'Failed to read emails');
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="p-4">
       <h2 className="text-lg font-semibold mb-4">Gmail Reader Configuration</h2>
       
-      <div className="mb-6">
-        <p className="text-sm text-gray-600 mb-4">
-          This agent allows you to read emails from your Gmail account. You'll need to authorize access to your Gmail account.
-        </p>
-        
-        {isAuthorized ? (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
-            <p className="text-green-700 font-medium">
-              ✓ Gmail authorized
-            </p>
-            {userEmail && (
-              <p className="text-sm text-green-600 mt-1">
-                Connected account: {userEmail}
-              </p>
-            )}
+      {/* Authorization Status */}
+      <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium">Status: {isAuthorized ? 'Authorized' : 'Not Authorized'}</p>
+            {isAuthorized && userEmail && <p className="text-sm text-gray-600">Account: {userEmail}</p>}
           </div>
-        ) : (
-          <div className="mb-4">
-            <button
-              onClick={authorizeGmail}
-              className="w-full px-4 py-2 bg-black text-white font-medium rounded-md hover:bg-gray-800"
-            >
-              Authorize Gmail
-            </button>
-          </div>
-        )}
+          <button
+            onClick={authorizeGmail}
+            className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+          >
+            {isAuthorized ? 'Reauthorize' : 'Authorize Gmail'}
+          </button>
+        </div>
       </div>
       
-      {/* Email Reader Settings */}
-      <div className="border-t pt-4 mt-4">
-        <h3 className="text-md font-medium mb-3">Email Reader Settings</h3>
-        
-        {/* From Email Input */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Read emails from (sender email)
-          </label>
+      {/* Configuration Form */}
+      <div className="space-y-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium mb-1">Sender Email Address</label>
           <input
             type="email"
             value={fromEmail}
             onChange={(e) => setFromEmail(e.target.value)}
-            placeholder="sender@example.com"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-            disabled={!isAuthorized || isLoading}
+            placeholder="example@gmail.com"
+            className="w-full p-2 border border-gray-300 rounded-md"
           />
+          <p className="text-xs text-gray-500 mt-1">Only show emails from this address</p>
         </div>
         
-        {/* Max Results Input */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Maximum number of emails
-          </label>
+        <div>
+          <label className="block text-sm font-medium mb-1">Maximum Results</label>
           <input
             type="number"
             value={maxResults}
             onChange={(e) => setMaxResults(parseInt(e.target.value) || 5)}
             min="1"
             max="50"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-            disabled={!isAuthorized || isLoading}
+            className="w-full p-2 border border-gray-300 rounded-md"
           />
         </div>
         
-        {/* Only Unread Checkbox */}
-        <div className="mb-4">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={onlyUnread}
-              onChange={(e) => setOnlyUnread(e.target.checked)}
-              className="mr-2 h-4 w-4 text-black focus:ring-black border-gray-300 rounded"
-              disabled={!isAuthorized || isLoading}
-            />
-            Only show unread emails
-          </label>
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="onlyUnread"
+            checked={onlyUnread}
+            onChange={(e) => setOnlyUnread(e.target.checked)}
+            className="mr-2"
+          />
+          <label htmlFor="onlyUnread" className="text-sm font-medium">Only show unread emails</label>
         </div>
       </div>
       
-      {/* Read Emails Button */}
+      {/* Action Button */}
       <div className="mb-4">
         <button
           onClick={readEmails}

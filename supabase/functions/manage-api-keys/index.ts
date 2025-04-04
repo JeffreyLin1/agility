@@ -163,27 +163,26 @@ serve(async (req) => {
     } else if (action === 'get') {
       // Check if this is a Gmail configuration
       if (keyType === 'gmail') {
-        // Get the Gmail credentials from Supabase
-        const { data, error } = await supabaseClient
-          .from('agent_configs')
-          .select('config')
+        // First check if the user has Gmail credentials
+        const { data: credentials, error: credentialsError } = await supabaseClient
+          .from('user_gmail_credentials')
+          .select('*')
           .eq('user_id', user.id)
-          .eq('element_id', elementId)
-          .eq('agent_type', 'gmail_sender')
-          .single()
+          .maybeSingle();
         
-        if (error) {
-          return new Response(JSON.stringify({ error: error.message }), {
+        if (credentialsError) {
+          return new Response(JSON.stringify({ error: credentialsError.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500,
           })
         }
         
-        if (!data?.config) {
+        if (!credentials) {
           return new Response(JSON.stringify({ 
             clientId: null, 
             clientSecret: null, 
-            refreshToken: null 
+            refreshToken: null,
+            isAuthorized: false
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
@@ -191,15 +190,16 @@ serve(async (req) => {
         }
         
         // Decrypt the Gmail credentials
-        const decryptedClientId = data.config.clientId ? decryptApiKey(data.config.clientId, encryptionKey) : null;
-        const decryptedClientSecret = data.config.clientSecret ? decryptApiKey(data.config.clientSecret, encryptionKey) : null;
-        const decryptedRefreshToken = data.config.refreshToken ? decryptApiKey(data.config.refreshToken, encryptionKey) : null;
+        const decryptedClientId = credentials.client_id ? decryptApiKey(credentials.client_id, encryptionKey) : null;
+        const decryptedClientSecret = credentials.client_secret ? decryptApiKey(credentials.client_secret, encryptionKey) : null;
+        const decryptedRefreshToken = credentials.refresh_token ? decryptApiKey(credentials.refresh_token, encryptionKey) : null;
         
         return new Response(JSON.stringify({ 
           clientId: decryptedClientId,
           clientSecret: decryptedClientSecret,
           refreshToken: decryptedRefreshToken,
-          email: data.config.email || null
+          email: credentials.email || null,
+          isAuthorized: true
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,

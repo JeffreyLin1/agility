@@ -133,26 +133,43 @@ serve(async (req) => {
         })
       }
 
-      // Check if this authorization has already been processed
-      if (state) {
-        const { data: existingConfig } = await supabaseClient
-          .from('agent_configs')
-          .select('config')
-          .eq('user_id', user.id)
-          .eq('element_id', state)
-          .eq('agent_type', 'gmail_sender')
-          .maybeSingle();
+      // Check if this user already has Gmail credentials
+      const { data: existingCredentials } = await supabaseClient
+        .from('user_gmail_credentials')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        if (existingConfig?.config?.refreshToken) {
-          return new Response(JSON.stringify({ 
-            success: true,
-            alreadyProcessed: true,
-            message: 'Gmail authorization already completed for this element'
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          })
+      if (existingCredentials?.refresh_token) {
+        // If we have a state parameter, update the agent_configs to reference these credentials
+        if (state) {
+          // Update the agent config to indicate Gmail is authorized
+          const { error: updateError } = await supabaseClient
+            .from('agent_configs')
+            .upsert({
+              user_id: user.id,
+              element_id: state,
+              agent_type: state.includes('reader') ? 'gmail_reader' : 'gmail_sender',
+              config: {
+                gmail_authorized: true
+              },
+              updated_at: new Date().toISOString(),
+            });
+            
+          if (updateError) {
+            console.error('Error updating agent config:', updateError);
+          }
         }
+        
+        return new Response(JSON.stringify({ 
+          success: true,
+          alreadyProcessed: true,
+          email: existingCredentials.email,
+          message: 'Gmail authorization already completed for this user'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
       }
 
       // Exchange the authorization code for tokens
@@ -200,44 +217,45 @@ serve(async (req) => {
       const encryptedClientSecret = encryptApiKey(clientSecret, encryptionKey);
       const encryptedRefreshToken = encryptApiKey(tokenData.refresh_token, encryptionKey);
 
-      // Store the credentials in the database
+      // Store the credentials in the centralized table
+      const { error: insertError } = await supabaseClient
+        .from('user_gmail_credentials')
+        .upsert({
+          user_id: user.id,
+          client_id: encryptedClientId,
+          client_secret: encryptedClientSecret,
+          refresh_token: encryptedRefreshToken,
+          email: userEmail,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        return new Response(JSON.stringify({ 
+          error: 'Failed to save Gmail credentials',
+          details: insertError
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        })
+      }
+
+      // If we have a state parameter, update the agent_configs
       if (state) {
-        // First check if a record already exists and delete it to avoid constraint violation
-        const { error: deleteError } = await supabaseClient
+        // Update the agent config to indicate Gmail is authorized
+        const { error: updateError } = await supabaseClient
           .from('agent_configs')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('element_id', state)
-          .eq('agent_type', 'gmail_sender');
-        
-        if (deleteError) {
-          console.error('Error deleting existing record:', deleteError);
-        }
-        
-        // Now insert the new record
-        const { error: insertError } = await supabaseClient
-          .from('agent_configs')
-          .insert({
+          .upsert({
             user_id: user.id,
             element_id: state,
-            agent_type: 'gmail_sender',
+            agent_type: state.includes('reader') ? 'gmail_reader' : 'gmail_sender',
             config: {
-              clientId: encryptedClientId,
-              clientSecret: encryptedClientSecret,
-              refreshToken: encryptedRefreshToken,
-              email: userEmail
+              gmail_authorized: true
             },
             updated_at: new Date().toISOString(),
           });
-
-        if (insertError) {
-          return new Response(JSON.stringify({ 
-            error: 'Failed to save Gmail credentials',
-            details: insertError
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500,
-          })
+          
+        if (updateError) {
+          console.error('Error updating agent config:', updateError);
         }
       }
 
