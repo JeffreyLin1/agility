@@ -7,23 +7,20 @@ interface GmailSenderConfigProps {
 }
 
 export default function GmailSenderConfig({ elementId, onClose }: GmailSenderConfigProps) {
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [testRecipient, setTestRecipient] = useState('');
   const [testSubject, setTestSubject] = useState('');
   const [testBody, setTestBody] = useState('');
   const [response, setResponse] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   
   const { session } = useAuth();
   
-  // Load the Gmail credentials using the Edge Function
+  // Check if Gmail is already authorized
   useEffect(() => {
-    const loadConfig = async () => {
+    const checkAuthorization = async () => {
       if (!session?.access_token) return;
       
       try {
@@ -42,71 +39,54 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
         
         const data = await response.json();
         
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to load Gmail credentials');
+        if (response.ok && data.refreshToken) {
+          setIsAuthorized(true);
+          setUserEmail(data.email || 'Your Gmail Account');
         }
-        
-        if (data.clientId) setClientId(data.clientId);
-        if (data.clientSecret) setClientSecret(data.clientSecret);
-        if (data.refreshToken) setRefreshToken(data.refreshToken);
       } catch (err) {
-        console.log('No saved Gmail credentials found or error loading credentials');
+        console.log('No Gmail authorization found or error checking authorization');
       }
     };
     
-    loadConfig();
+    checkAuthorization();
   }, [session, elementId]);
   
-  // Save the Gmail credentials using the Edge Function
-  const saveCredentials = async () => {
-    if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) {
-      setError('All Gmail credentials are required');
-      return;
-    }
-    
+  // Start the OAuth flow
+  const authorizeGmail = async () => {
     if (!session?.access_token) {
-      setError('You must be logged in to save credentials');
+      setError('You must be logged in to authorize Gmail');
       return;
     }
-    
-    setIsSaving(true);
-    setError(null);
     
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-api-keys`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          action: 'save',
-          elementId,
-          keyType: 'gmail',
-          clientId,
-          clientSecret,
-          refreshToken
-        })
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/gmail-oauth?action=authorize&state=${elementId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        }
+      );
       
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save Gmail credentials');
+        throw new Error(data.error || 'Failed to start Gmail authorization');
       }
       
-      setIsSaved(true);
-      setTimeout(() => setIsSaved(false), 3000);
+      // Redirect to Google's authorization page
+      window.location.href = data.authUrl;
     } catch (err: any) {
-      setError(err.message || 'Failed to save Gmail credentials');
-    } finally {
-      setIsSaving(false);
+      setError(err.message || 'Failed to start Gmail authorization');
     }
   };
   
+  // Test sending an email
   const testAgent = async () => {
-    if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) {
-      setError('All Gmail credentials are required');
+    if (!isAuthorized) {
+      setError('You must authorize Gmail before sending emails');
       return;
     }
     
@@ -128,9 +108,7 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
           'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
-          clientId,
-          clientSecret,
-          refreshToken,
+          elementId, // Only send elementId, credentials will be fetched from the database
           to: testRecipient,
           subject: testSubject,
           body: testBody
@@ -152,78 +130,46 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
   };
   
   return (
-    <div className="w-full">
-      <div className="mb-4">
-        <h3 className="font-bold text-lg text-black">Gmail Sender</h3>
-        <p className="text-sm text-gray-600">Configure your Gmail Sender agent</p>
-      </div>
+    <div className="p-4">
+      <h2 className="text-lg font-semibold mb-4">Gmail Sender Configuration</h2>
       
-      {/* Client ID Input */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Google Client ID
-        </label>
-        <input
-          type="text"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          placeholder="Your Google Client ID"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-        />
-      </div>
-      
-      {/* Client Secret Input */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Google Client Secret
-        </label>
-        <input
-          type="password"
-          value={clientSecret}
-          onChange={(e) => setClientSecret(e.target.value)}
-          placeholder="Your Google Client Secret"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-        />
-      </div>
-      
-      {/* Refresh Token Input */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Gmail Refresh Token
-        </label>
-        <input
-          type="password"
-          value={refreshToken}
-          onChange={(e) => setRefreshToken(e.target.value)}
-          placeholder="Your Gmail Refresh Token"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black text-black"
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          <a 
-            href="https://developers.google.com/gmail/api/auth/about-auth" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            How to get Gmail credentials
-          </a>
+      <div className="mb-6">
+        <p className="text-sm text-gray-600 mb-4">
+          This agent allows you to send emails from your Gmail account. You'll need to authorize access to your Gmail account.
         </p>
+        
+        {isAuthorized ? (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-md mb-4">
+            <p className="text-green-700 font-medium">
+              ✓ Gmail authorized
+            </p>
+            {userEmail && (
+              <p className="text-sm text-green-600 mt-1">
+                Connected account: {userEmail}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mb-4">
+            <button
+              onClick={authorizeGmail}
+              className="w-full px-4 py-2 bg-black text-white font-medium rounded-md hover:bg-gray-800 flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21.8055 10.0415H21V10H12V14H17.6515C16.827 16.3285 14.6115 18 12 18C8.6865 18 6 15.3135 6 12C6 8.6865 8.6865 6 12 6C13.5295 6 14.921 6.577 15.9805 7.5195L18.809 4.691C17.023 3.0265 14.634 2 12 2C6.4775 2 2 6.4775 2 12C2 17.5225 6.4775 22 12 22C17.5225 22 22 17.5225 22 12C22 11.3295 21.931 10.675 21.8055 10.0415Z" fill="#FFC107"/>
+                <path d="M3.15295 7.3455L6.43845 9.755C7.32745 7.554 9.48045 6 12 6C13.5295 6 14.921 6.577 15.9805 7.5195L18.809 4.691C17.023 3.0265 14.634 2 12 2C8.15895 2 4.82795 4.1685 3.15295 7.3455Z" fill="#FF3D00"/>
+                <path d="M12 22C14.583 22 16.93 21.0115 18.7045 19.404L15.6095 16.785C14.5718 17.5742 13.3038 18.001 12 18C9.39903 18 7.19053 16.3415 6.35853 14.027L3.09753 16.5395C4.75253 19.778 8.11353 22 12 22Z" fill="#4CAF50"/>
+                <path d="M21.8055 10.0415H21V10H12V14H17.6515C17.2571 15.1082 16.5467 16.0766 15.608 16.7855L15.6095 16.7845L18.7045 19.4035C18.4855 19.6025 22 17 22 12C22 11.3295 21.931 10.675 21.8055 10.0415Z" fill="#1976D2"/>
+              </svg>
+              Authorize with Gmail
+            </button>
+          </div>
+        )}
       </div>
       
-      <div className="mt-2 mb-4 flex justify-end">
-        <button
-          onClick={saveCredentials}
-          disabled={isSaving}
-          className={`px-3 py-1 text-sm font-medium rounded-md bg-black text-white hover:bg-gray-800 ${
-            isSaving ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          {isSaving ? 'Saving...' : isSaved ? 'Saved!' : 'Save Configuration'}
-        </button>
-      </div>
-      
-      <div className="border-t border-gray-200 my-4 pt-4">
-        <h4 className="font-medium text-black mb-2">Test Email</h4>
+      {/* Test Email Section */}
+      <div className="border-t pt-4 mt-4">
+        <h3 className="text-md font-medium mb-3">Test Email</h3>
         
         {/* Test Recipient Input */}
         <div className="mb-4">
@@ -272,9 +218,9 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
       <div className="mb-4">
         <button
           onClick={testAgent}
-          disabled={isLoading}
+          disabled={isLoading || !isAuthorized}
           className={`w-full px-4 py-2 bg-black text-white font-medium rounded-md hover:bg-gray-800 ${
-            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            (isLoading || !isAuthorized) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
           {isLoading ? (

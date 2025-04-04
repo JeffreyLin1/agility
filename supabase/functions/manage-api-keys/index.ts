@@ -77,10 +77,54 @@ serve(async (req) => {
     }
 
     // Get the request body
-    const { action, elementId, apiKey, model } = await req.json()
+    const { action, elementId, apiKey, model, keyType } = await req.json()
     const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key'
 
     if (action === 'save') {
+      // Check if this is a Gmail configuration
+      if (keyType === 'gmail') {
+        const { clientId, clientSecret, refreshToken } = await req.json();
+        
+        if (!clientId || !clientSecret || !refreshToken) {
+          return new Response(JSON.stringify({ error: 'All Gmail credentials are required' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          })
+        }
+        
+        // Encrypt the Gmail credentials
+        const encryptedClientId = encryptApiKey(clientId, encryptionKey);
+        const encryptedClientSecret = encryptApiKey(clientSecret, encryptionKey);
+        const encryptedRefreshToken = encryptApiKey(refreshToken, encryptionKey);
+        
+        // Store the encrypted Gmail credentials in Supabase
+        const { error } = await supabaseClient
+          .from('agent_configs')
+          .upsert({
+            user_id: user.id,
+            element_id: elementId,
+            agent_type: 'gmail_sender',
+            config: { 
+              clientId: encryptedClientId,
+              clientSecret: encryptedClientSecret,
+              refreshToken: encryptedRefreshToken
+            },
+            updated_at: new Date().toISOString(),
+          })
+        
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          })
+        }
+        
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
+      }
+      
       if (!apiKey) {
         return new Response(JSON.stringify({ error: 'API key is required' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -117,6 +161,51 @@ serve(async (req) => {
         status: 200,
       })
     } else if (action === 'get') {
+      // Check if this is a Gmail configuration
+      if (keyType === 'gmail') {
+        // Get the Gmail credentials from Supabase
+        const { data, error } = await supabaseClient
+          .from('agent_configs')
+          .select('config')
+          .eq('user_id', user.id)
+          .eq('element_id', elementId)
+          .eq('agent_type', 'gmail_sender')
+          .single()
+        
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          })
+        }
+        
+        if (!data?.config) {
+          return new Response(JSON.stringify({ 
+            clientId: null, 
+            clientSecret: null, 
+            refreshToken: null 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          })
+        }
+        
+        // Decrypt the Gmail credentials
+        const decryptedClientId = data.config.clientId ? decryptApiKey(data.config.clientId, encryptionKey) : null;
+        const decryptedClientSecret = data.config.clientSecret ? decryptApiKey(data.config.clientSecret, encryptionKey) : null;
+        const decryptedRefreshToken = data.config.refreshToken ? decryptApiKey(data.config.refreshToken, encryptionKey) : null;
+        
+        return new Response(JSON.stringify({ 
+          clientId: decryptedClientId,
+          clientSecret: decryptedClientSecret,
+          refreshToken: decryptedRefreshToken,
+          email: data.config.email || null
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
+      }
+
       // Get the API key from Supabase
       const { data, error } = await supabaseClient
         .from('agent_configs')
