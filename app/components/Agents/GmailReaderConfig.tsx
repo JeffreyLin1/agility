@@ -125,6 +125,9 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
       }
       
       setMessages(data.messages || []);
+      if (data.messages.length === 0) {
+        setError(`No emails found from ${fromEmail}`);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to read emails');
     } finally {
@@ -134,47 +137,66 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4">Gmail Reader Configuration</h2>
+      <h2 className="text-lg font-semibold mb-4 text-black">Gmail Reader Configuration</h2>
       
       {/* Authorization Status */}
-      <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+      <div className={`mb-4 p-4 rounded-md border ${isAuthorized ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-medium">Status: {isAuthorized ? 'Authorized' : 'Not Authorized'}</p>
-            {isAuthorized && userEmail && <p className="text-sm text-gray-600">Account: {userEmail}</p>}
+            <div className="flex items-center">
+              {isAuthorized ? (
+                <>
+                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                  <p className="font-medium text-blue-800">Connected to Gmail</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-3 h-3 bg-amber-500 rounded-full mr-2"></div>
+                  <p className="font-medium text-amber-800">Gmail connection required</p>
+                </>
+              )}
+            </div>
+            {isAuthorized && userEmail && (
+              <p className="text-sm text-blue-700 mt-1 ml-5">
+                Using account: <span className="font-medium">{userEmail}</span>
+              </p>
+            )}
           </div>
           <button
             onClick={authorizeGmail}
-            className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+            className={`px-3 py-1.5 text-white text-sm font-medium rounded-md ${
+              isAuthorized 
+                ? 'bg-blue-600 hover:bg-blue-700' 
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
           >
-            {isAuthorized ? 'Reauthorize' : 'Authorize Gmail'}
+            {isAuthorized ? 'Reconnect Account' : 'Connect Gmail'}
           </button>
         </div>
       </div>
       
-      {/* Configuration Form */}
-      <div className="space-y-4 mb-6">
+      {/* Email Search Form */}
+      <div className="space-y-4 mb-6 p-4 border border-gray-200 rounded-md bg-white">
         <div>
-          <label className="block text-sm font-medium mb-1">Sender Email Address</label>
+          <label className="block text-sm font-medium mb-1 text-black">Search for emails from</label>
           <input
             type="email"
             value={fromEmail}
             onChange={(e) => setFromEmail(e.target.value)}
-            placeholder="example@gmail.com"
-            className="w-full p-2 border border-gray-300 rounded-md"
+            placeholder="sender@example.com"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
           />
-          <p className="text-xs text-gray-500 mt-1">Only show emails from this address</p>
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1">Maximum Results</label>
+          <label className="block text-sm font-medium mb-1 text-black">Maximum results</label>
           <input
             type="number"
             value={maxResults}
             onChange={(e) => setMaxResults(parseInt(e.target.value) || 5)}
             min="1"
             max="50"
-            className="w-full p-2 border border-gray-300 rounded-md"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
           />
         </div>
         
@@ -184,9 +206,9 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
             id="onlyUnread"
             checked={onlyUnread}
             onChange={(e) => setOnlyUnread(e.target.checked)}
-            className="mr-2"
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
-          <label htmlFor="onlyUnread" className="text-sm font-medium">Only show unread emails</label>
+          <label htmlFor="onlyUnread" className="ml-2 text-sm font-medium text-black">Only show unread emails</label>
         </div>
       </div>
       
@@ -195,7 +217,7 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
         <button
           onClick={readEmails}
           disabled={isLoading || !isAuthorized || !fromEmail.trim()}
-          className={`w-full px-4 py-2 bg-black text-white font-medium rounded-md hover:bg-gray-800 ${
+          className={`w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
             (isLoading || !isAuthorized || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
@@ -215,8 +237,13 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
       
       {/* Error Message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
-          {error}
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-800 rounded-md">
+          <div className="flex">
+            <svg className="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            {error}
+          </div>
         </div>
       )}
       
@@ -226,13 +253,13 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
           <h3 className="text-md font-medium mb-3">Emails from {fromEmail}</h3>
           <div className="space-y-3">
             {messages.map((message) => (
-              <div key={message.id} className="p-3 border border-gray-200 rounded-md">
-                <div className="font-medium">{message.subject}</div>
-                <div className="text-xs text-gray-500">{new Date(message.date).toLocaleString()}</div>
-                <div className="mt-2 text-sm">{message.snippet}...</div>
+              <div key={message.id} className="p-3 border border-gray-200 rounded-md bg-white shadow-sm hover:shadow-md transition-shadow">
+                <div className="font-medium text-blue-900">{message.subject}</div>
+                <div className="text-xs text-gray-600">{new Date(message.date).toLocaleString()}</div>
+                <div className="mt-2 text-sm text-gray-800">{message.snippet}...</div>
                 <details className="mt-2">
-                  <summary className="text-xs text-blue-600 cursor-pointer">View full message</summary>
-                  <div className="mt-2 p-2 bg-gray-50 text-sm whitespace-pre-line border border-gray-100 rounded">
+                  <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">View full message</summary>
+                  <div className="mt-2 p-3 bg-blue-50 text-sm whitespace-pre-line border border-blue-100 rounded text-gray-800">
                     {message.body}
                   </div>
                 </details>
