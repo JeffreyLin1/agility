@@ -385,12 +385,16 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       }
       
       const data = await response.json();
-      showToast('Workflow saved successfully!', 'success');
       
       // If the response includes a workflow ID, update the state
       if (data.workflow && data.workflow.id) {
         setWorkflowId(data.workflow.id);
+        
+        // Save the connections to the agent_connections table
+        await saveWorkflowConnections(data.workflow.id, workflow.connections);
       }
+      
+      showToast('Workflow saved successfully!', 'success');
     } catch (err) {
       console.error('Error saving workflow:', err);
       showToast(err instanceof Error ? err.message : 'Failed to save workflow', 'error');
@@ -514,6 +518,34 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       loadWorkflow();
     }
   }, [session]);
+
+  // Add this function to your Canvas component
+  const saveWorkflowConnections = async (workflowId: string, connections: Connection[]) => {
+    if (!session?.access_token) return;
+    
+    try {
+      console.log('Saving workflow connections:', connections.length);
+      
+      // For each connection in the workflow
+      for (const connection of connections) {
+        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            workflowId,
+            sourceElementId: connection.sourceId,
+            targetElementId: connection.targetId
+          })
+        });
+      }
+      console.log('Connections saved successfully');
+    } catch (error) {
+      console.error('Error saving workflow connections:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
