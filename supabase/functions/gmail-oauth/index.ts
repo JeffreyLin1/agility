@@ -14,9 +14,10 @@ const GOOGLE_OAUTH2_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_OAUTH2_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
-// Gmail API scopes needed for sending emails
+// Gmail API scopes needed for sending and reading emails
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/userinfo.email'
 ].join(' ');
 

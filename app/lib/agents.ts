@@ -119,5 +119,17 @@ export const availableAgents = [
     name: 'Anomaly Detector',
     description: 'Identifies unusual patterns in data',
     color: '#fef2f2'
+  },
+  {
+    id: '21',
+    name: 'Gmail Sender',
+    description: 'Sends emails through Gmail',
+    color: '#fff7ed'
+  },
+  {
+    id: '22',
+    name: 'Gmail Reader',
+    description: 'Reads emails from specific senders in Gmail',
+    color: '#ecfdf5'
   }
 ]; 
