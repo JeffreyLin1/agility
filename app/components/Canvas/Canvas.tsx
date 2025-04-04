@@ -151,7 +151,7 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
     setTempConnectionTarget(position); // Initialize with the source position
   };
   
-  const handleConnectionEnd = (targetId: string | null) => {
+  const handleConnectionEnd = async (targetId: string | null) => {
     if (connectionSource && targetId && connectionSource !== targetId) {
       // Create a new connection
       const newConnection: Connection = {
@@ -388,10 +388,29 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       
       // If the response includes a workflow ID, update the state
       if (data.workflow && data.workflow.id) {
-        setWorkflowId(data.workflow.id);
+        const savedWorkflowId = data.workflow.id;
+        setWorkflowId(savedWorkflowId);
         
         // Save the connections to the agent_connections table
-        await saveWorkflowConnections(data.workflow.id, workflow.connections);
+        console.log('Saving workflow connections:', workflow.connections.length);
+        
+        // For each connection in the workflow
+        for (const connection of workflow.connections) {
+          console.log('Saving connection:', connection.sourceId, '->', connection.targetId);
+          
+          await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              sourceElementId: connection.sourceId,
+              targetElementId: connection.targetId
+            })
+          });
+        }
+        console.log('Connections saved successfully');
       }
       
       showToast('Workflow saved successfully!', 'success');
@@ -518,34 +537,6 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       loadWorkflow();
     }
   }, [session]);
-
-  // Add this function to your Canvas component
-  const saveWorkflowConnections = async (workflowId: string, connections: Connection[]) => {
-    if (!session?.access_token) return;
-    
-    try {
-      console.log('Saving workflow connections:', connections.length);
-      
-      // For each connection in the workflow
-      for (const connection of connections) {
-        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            workflowId,
-            sourceElementId: connection.sourceId,
-            targetElementId: connection.targetId
-          })
-        });
-      }
-      console.log('Connections saved successfully');
-    } catch (error) {
-      console.error('Error saving workflow connections:', error);
-    }
-  };
 
   return (
     <div className="flex flex-col h-full w-full">

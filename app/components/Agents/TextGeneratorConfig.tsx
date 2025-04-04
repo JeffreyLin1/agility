@@ -88,9 +88,13 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       setIsLoadingConnections(true);
       
       try {
+        console.log('TextGeneratorConfig - Element ID:', elementId);
+        
         // First, get all connections where this element is the target
+        // We'll use the user's ID instead of a workflow ID
+        console.log('Fetching connections for current user');
         const connectionsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections?workflowId=${elementId.split('-')[0]}`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-connections`,
           {
             method: 'GET',
             headers: {
@@ -100,16 +104,21 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         );
         
         if (!connectionsResponse.ok) {
-          throw new Error('Failed to fetch connections');
+          const errorText = await connectionsResponse.text();
+          console.error('Connection response error:', connectionsResponse.status, errorText);
+          throw new Error(`Failed to fetch connections: ${connectionsResponse.status} ${errorText}`);
         }
         
         const connectionsData = await connectionsResponse.json();
+        console.log('Connections data received:', connectionsData);
         const connections = connectionsData.connections || [];
         
         // Filter connections where this element is the target
         const incomingConnections = connections.filter(
           (conn: any) => conn.target_element_id === elementId
         );
+        
+        console.log('Incoming connections:', incomingConnections);
         
         if (incomingConnections.length === 0) {
           setConnectedAgentData([]);
@@ -131,7 +140,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
               'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
-              workflowId: elementId.split('-')[0],
               elementIds: sourceElementIds,
             }),
           }
@@ -262,8 +270,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         setResponse(generatedText);
         
         // After generating text, store the output
-        const workflowId = elementId.split('-')[0];
-        
         if (session?.access_token) {
           const outputResponse = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
@@ -275,7 +281,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
               },
               body: JSON.stringify({
                 action: 'save',
-                workflowId,
                 elementId,
                 outputData: {
                   type: 'text_generator',
@@ -322,8 +327,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
         setResponse(generatedText);
         
         // After generating text, store the output
-        const workflowId = elementId.split('-')[0];
-        
         if (session?.access_token) {
           const outputResponse = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-outputs`,
@@ -335,7 +338,6 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
               },
               body: JSON.stringify({
                 action: 'save',
-                workflowId,
                 elementId,
                 outputData: {
                   type: 'text_generator',

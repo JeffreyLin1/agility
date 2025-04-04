@@ -75,45 +75,24 @@ serve(async (req) => {
 
     // Handle different HTTP methods
     if (req.method === 'GET') {
-      // Get connections for a workflow
-      const url = new URL(req.url);
-      const workflowId = url.searchParams.get('workflowId');
-      
-      if (!workflowId) {
-        return new Response(JSON.stringify({ error: 'Workflow ID is required' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        })
-      }
-      
-      // Check if workflowId is a valid UUID
-      if (!isValidUUID(workflowId)) {
-        return new Response(JSON.stringify({ 
-          error: 'Invalid workflow ID format' 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        });
-      }
-      
+      // Get all connections for the current user
       const { data: connections, error } = await supabaseClient
         .from('agent_connections')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('workflow_id', workflowId);
+        .eq('user_id', user.id);
         
       if (error) {
         debug('Error fetching connections', error);
         return new Response(JSON.stringify({ error: 'Failed to fetch connections' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500,
-        })
+        });
       }
       
       return new Response(JSON.stringify({ connections: connections }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      })
+      });
     } 
     else if (req.method === 'POST') {
       // Create a new connection
