@@ -128,6 +128,12 @@ const sampleAgents: Agent[] = [
     name: 'Anomaly Detector',
     description: 'Identifies unusual patterns in data',
     color: '#fef2f2'  // Light red
+  },
+  {
+    id: '21',
+    name: 'Gmail Sender',
+    description: 'Sends emails through Gmail',
+    color: '#fff7ed'  // Light orange
   }
 ];
 

@@ -168,8 +168,11 @@ export default function WorkflowNode({
     }
     
     // Otherwise, select the node for configuration
-    if (onSelect && element.agentId === '1') { // Text Generator agent ID
-      onSelect(element.id, element.agentId);
+    if (onSelect) {
+      // Check if this is a configurable agent (Text Generator or Gmail Sender)
+      if (element.agentId === '1' || element.agentId === '21') {
+        onSelect(element.id, element.agentId);
+      }
     }
   };
   
