@@ -21,6 +21,13 @@ function debug(message: string, data?: any) {
   }
 }
 
+// Add this helper function at the top of your file
+function isValidUUID(str: string) {
+  // Simple UUID validation regex
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 serve(async (req) => {
   debug('Request received');
   
@@ -79,7 +86,17 @@ serve(async (req) => {
         })
       }
       
-      const { data, error } = await supabaseClient
+      // Check if workflowId is a valid UUID
+      if (!isValidUUID(workflowId)) {
+        return new Response(JSON.stringify({ 
+          error: 'Invalid workflow ID format' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        });
+      }
+      
+      const { data: connections, error } = await supabaseClient
         .from('agent_connections')
         .select('*')
         .eq('user_id', user.id)
@@ -93,7 +110,7 @@ serve(async (req) => {
         })
       }
       
-      return new Response(JSON.stringify({ connections: data }), {
+      return new Response(JSON.stringify({ connections: connections }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       })
@@ -117,7 +134,17 @@ serve(async (req) => {
         })
       }
       
-      const { data, error } = await supabaseClient
+      // Check if workflowId is a valid UUID
+      if (!isValidUUID(workflowId)) {
+        return new Response(JSON.stringify({ 
+          error: 'Invalid workflow ID format' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        });
+      }
+      
+      const { error } = await supabaseClient
         .from('agent_connections')
         .upsert({
           user_id: user.id,
