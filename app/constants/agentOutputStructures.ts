@@ -16,55 +16,48 @@ export const textGeneratorOutputStructure: AgentOutputStructure = {
 
 // Gmail Reader output structure
 export const gmailReaderOutputStructure: AgentOutputStructure = {
-  type: 'email_messages',
-  description: 'Email messages retrieved from Gmail',
+  description: "Access email data from the Gmail Reader agent",
   fields: [
     {
-      name: 'messages',
-      type: 'array',
-      description: 'Array of email messages',
+      name: "messages",
+      type: "array",
+      description: "Array of email messages retrieved from Gmail",
       required: true
     },
     {
-      name: 'message.id',
-      type: 'string',
-      description: 'Unique identifier for the email',
+      name: "emailBody",
+      type: "string",
+      description: "Body content of the first email message",
       required: true
     },
     {
-      name: 'message.threadId',
-      type: 'string',
-      description: 'Thread identifier for the email',
+      name: "emailSubject",
+      type: "string",
+      description: "Subject line of the first email message",
       required: true
     },
     {
-      name: 'message.subject',
-      type: 'string',
-      description: 'Email subject line',
+      name: "emailFrom",
+      type: "string",
+      description: "Sender of the first email message",
       required: true
     },
     {
-      name: 'message.from',
-      type: 'string',
-      description: 'Sender email address',
+      name: "emailTo",
+      type: "string",
+      description: "Recipient of the first email message",
       required: true
     },
     {
-      name: 'message.date',
-      type: 'string',
-      description: 'Date the email was sent',
+      name: "emailDate",
+      type: "string",
+      description: "Date the first email was sent",
       required: true
     },
     {
-      name: 'message.body',
-      type: 'string',
-      description: 'Email body content',
-      required: true
-    },
-    {
-      name: 'message.snippet',
-      type: 'string',
-      description: 'Short preview of the email content',
+      name: "email",
+      type: "string",
+      description: "Formatted representation of the first email including headers and body",
       required: true
     }
   ]

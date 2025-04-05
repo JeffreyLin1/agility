@@ -311,37 +311,7 @@ serve(async (req) => {
       
       debug('Processed messages', { count: messages.length });
       
-      // Store the output in the agent_outputs table
-      if (messages.length > 0) {
-        debug('Storing output in agent_outputs table');
-        const { error: outputError } = await supabaseClient
-          .from('agent_outputs')
-          .upsert({
-            user_id: user.id,
-            workflow_id: elementId.split('-')[0], // Assuming elementId format is "workflowId-elementId"
-            element_id: elementId,
-            output_data: { 
-              type: 'gmail_reader',
-              messages: messages,
-              metadata: {
-                fromEmail,
-                maxResults,
-                onlyUnread,
-                timestamp: new Date().toISOString()
-              }
-            },
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'workflow_id,element_id'
-          });
-
-        if (outputError) {
-          debug('Error storing output', outputError);
-          // Continue anyway, this shouldn't block the response
-        } else {
-          debug('Output stored successfully');
-        }
-      }
+      // The code for storing output in agent_outputs table has been removed
 
       return new Response(JSON.stringify({ 
         messages 

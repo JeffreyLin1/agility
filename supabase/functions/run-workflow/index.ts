@@ -59,7 +59,22 @@ function getValueByPath(obj: Record<string, any>, path: string): any {
   const parts = path.split('.');
   let current = obj;
   
+  debug('Starting path resolution', { 
+    path, 
+    parts,
+    objKeys: Object.keys(obj),
+    hasInput: !!obj.input,
+    inputKeys: obj.input ? Object.keys(obj.input) : []
+  });
+  
   for (const part of parts) {
+    debug('Processing path part', { 
+      part, 
+      currentType: typeof current,
+      currentIsArray: Array.isArray(current),
+      currentKeys: current && typeof current === 'object' ? Object.keys(current) : []
+    });
+    
     if (current === null || current === undefined || typeof current !== 'object') {
       debug('Path resolution failed', { part, current });
       return undefined;
@@ -71,11 +86,24 @@ function getValueByPath(obj: Record<string, any>, path: string): any {
       if (Array.isArray(current) && index < current.length) {
         current = current[index];
       } else {
-        debug('Array index out of bounds', { part, arrayLength: Array.isArray(current) ? current.length : 'not an array' });
+        debug('Array index out of bounds or not an array', { 
+          part, 
+          isArray: Array.isArray(current),
+          length: Array.isArray(current) ? current.length : 0
+        });
         return undefined;
       }
     } else {
-      current = current[part];
+      // Handle object properties
+      if (part in current) {
+        current = current[part];
+      } else {
+        debug('Property not found in object', { 
+          part, 
+          availableKeys: Object.keys(current)
+        });
+        return undefined;
+      }
     }
   }
   
@@ -461,24 +489,66 @@ serve(async (req) => {
             })
           });
           
-          result = await response.json();
-          
-          // Store the result in the context for future agents to use
-          outputContext[currentElementId] = result;
-          
-          // Also store a simplified version for easier access via input.messages
-          if (result.messages) {
+          // Parse the response
+          const responseText = await response.text();
+          try {
+            result = JSON.parse(responseText);
+            
+            // Store the result in the context
+            outputContext[currentElementId] = result;
+            
             // Make sure the input namespace exists
             if (!outputContext.input) {
               outputContext.input = {};
             }
-            outputContext.input.messages = result.messages;
+            
+            // Store the messages array and individual fields for easier access
+            if (result.messages && result.messages.length > 0) {
+              // Store the messages array
+              outputContext.input.messages = result.messages;
+              
+              // Store the first message details for easy access
+              const firstEmail = result.messages[0];
+              outputContext.input.emailBody = firstEmail.body || '';
+              outputContext.input.emailSubject = firstEmail.subject || '';
+              outputContext.input.emailFrom = firstEmail.from || '';
+              outputContext.input.emailTo = firstEmail.to || '';
+              outputContext.input.emailDate = firstEmail.date || '';
+              
+              // Create a formatted email representation for easy use in prompts
+              outputContext.input.email = `From: ${firstEmail.from || 'Unknown'}\nTo: ${firstEmail.to || 'Unknown'}\nSubject: ${firstEmail.subject || 'No Subject'}\nDate: ${firstEmail.date || 'Unknown'}\n\n${firstEmail.body || ''}`;
+              
+              debug('Stored gmail reader output in context', { 
+                messageCount: result.messages.length,
+                hasEmailBody: !!outputContext.input.emailBody,
+                emailBodyLength: outputContext.input.emailBody.length,
+                emailBodyPreview: outputContext.input.emailBody.substring(0, 50) + '...',
+                hasEmail: !!outputContext.input.email,
+                emailLength: outputContext.input.email.length,
+                contextKeys: Object.keys(outputContext),
+                inputKeys: Object.keys(outputContext.input)
+              });
+            } else {
+              debug('No messages found in Gmail reader result', { result: JSON.stringify(result).substring(0, 100) });
+              // Set empty values to avoid undefined errors
+              outputContext.input.messages = [];
+              outputContext.input.emailBody = '';
+              outputContext.input.emailSubject = '';
+              outputContext.input.emailFrom = '';
+              outputContext.input.emailTo = '';
+              outputContext.input.emailDate = '';
+              outputContext.input.email = '';
+            }
+          } catch (e) {
+            debug('Error parsing Gmail reader response JSON', { error: e.message, responseText });
+            result = { error: 'Failed to parse response', rawResponse: responseText };
+            
+            // Store error in context
+            if (!outputContext.input) {
+              outputContext.input = {};
+            }
+            outputContext.input.emailError = `Error: ${e.message}`;
           }
-          
-          debug('Stored gmail reader output in context', { 
-            messageCount: result.messages?.length,
-            contextKeys: Object.keys(outputContext)
-          });
         }
         else if (agentType === 'gmail_sender') {
           const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-gmail`, {
