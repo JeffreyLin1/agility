@@ -198,23 +198,6 @@ serve(async (req) => {
         break;
       }
       
-      // Get the previous element's output if it exists
-      const prevElementId = Array.from(connectionMap.entries())
-        .find(([_, targetId]) => targetId === currentElementId)?.[0];
-      
-      let prevOutput = null;
-      if (prevElementId) {
-        // Find the previous element's result in our execution results
-        const prevResult = executionResults.find(r => r.elementId === prevElementId);
-        if (prevResult) {
-          prevOutput = prevResult.result;
-          debug('Found previous element output', { 
-            prevElementId, 
-            outputAvailable: !!prevOutput 
-          });
-        }
-      }
-      
       // Execute the element based on its type
       let result = null;
       
@@ -247,14 +230,7 @@ serve(async (req) => {
           });
         }
         
-        // Process the configuration to replace any input variables
-        const processedConfig = processConfigWithInputs(config.config, prevOutput);
-        debug('Processed config with inputs', { 
-          hasInputs: !!prevOutput,
-          configKeys: Object.keys(processedConfig)
-        });
-        
-        // Execute the agent with the processed configuration
+        // Execute the agent with its configuration (without processing inputs)
         if (agentType === 'text_generator') {
           const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-text`, {
             method: 'POST',
@@ -264,11 +240,10 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              prompt: processedConfig.prompt,
-              model: processedConfig.model,
-              apiKey: processedConfig.apiKey,
-              provider: processedConfig.provider,
-              previousOutput: prevOutput // Pass the previous output directly as well
+              prompt: config.config.prompt,
+              model: config.config.model,
+              apiKey: config.config.apiKey,
+              provider: config.config.provider
             })
           });
           
@@ -283,10 +258,9 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              fromEmail: processedConfig.fromEmail,
-              maxResults: processedConfig.maxResults,
-              onlyUnread: processedConfig.onlyUnread,
-              previousOutput: prevOutput
+              fromEmail: config.config.fromEmail,
+              maxResults: config.config.maxResults,
+              onlyUnread: config.config.onlyUnread
             })
           });
           
@@ -301,10 +275,9 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              to: processedConfig.to || processedConfig.testRecipient,
-              subject: processedConfig.subject || processedConfig.testSubject,
-              body: processedConfig.body || processedConfig.testBody,
-              previousOutput: prevOutput
+              to: config.config.to || config.config.testRecipient,
+              subject: config.config.subject || config.config.testSubject,
+              body: config.config.body || config.config.testBody
             })
           });
           
