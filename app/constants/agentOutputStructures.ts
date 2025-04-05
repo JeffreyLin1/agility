@@ -16,6 +16,7 @@ export const textGeneratorOutputStructure: AgentOutputStructure = {
 
 // Gmail Reader output structure
 export const gmailReaderOutputStructure: AgentOutputStructure = {
+  type: 'email',
   description: "Access email data from the Gmail Reader agent",
   fields: [
     {
@@ -65,6 +66,7 @@ export const gmailReaderOutputStructure: AgentOutputStructure = {
 
 // Discord Messenger output structure
 export const discordMessengerOutputStructure: AgentOutputStructure = {
+  type: 'discord',
   description: "Access data from the Discord Messenger agent",
   fields: [
     {
