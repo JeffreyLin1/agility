@@ -203,7 +203,11 @@ serve(async (req) => {
       const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'default-encryption-key';
 
       // Decrypt the API key
-      finalApiKey = agentConfig.config.apiKey ? decryptApiKey(agentConfig.config.apiKey, encryptionKey) : null;
+      finalApiKey = agentConfig.config.apiKey 
+        ? decryptApiKey(agentConfig.config.apiKey, encryptionKey) 
+        : agentConfig.config.api_key 
+          ? decryptApiKey(agentConfig.config.api_key, encryptionKey) 
+          : null;
       finalModel = agentConfig.config.model || 'gpt-3.5-turbo';
 
       debug('Config decrypted', { 

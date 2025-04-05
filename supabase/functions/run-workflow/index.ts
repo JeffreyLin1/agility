@@ -7,6 +7,104 @@ const debug = (message: string, data?: any) => {
   console.log(`[run-workflow] ${message}`, data ? data : '');
 };
 
+// Function to resolve placeholders in text using the context
+function resolvePlaceholders(text: string, context: Record<string, any>): string {
+  if (!text || typeof text !== 'string') {
+    return text;
+  }
+
+  debug('Resolving placeholders', { 
+    textLength: text.length,
+    hasPlaceholders: text.includes('{{input.')
+  });
+
+  return text.replace(/{{input\.(.*?)}}/g, (match, path) => {
+    debug('Found placeholder', { 
+      placeholder: match, 
+      path,
+      inputExists: !!context.input,
+      inputKeys: context.input ? Object.keys(context.input) : [],
+      textExists: !!context.input?.text,
+      textLength: context.input?.text?.length || 0
+    });
+    
+    // Get the value from the context - need to prepend "input." to the path
+    const fullPath = `input.${path}`;
+    const value = getValueByPath(context, fullPath);
+    
+    debug('Value from getValueByPath', {
+      path,
+      fullPath,
+      valueExists: value !== undefined && value !== null,
+      valueType: typeof value,
+      valueLength: typeof value === 'string' ? value.length : 0
+    });
+    
+    // Convert the value to string if it's not already
+    const stringValue = typeof value === 'string' ? value : 
+                       (value === null || value === undefined) ? '' : 
+                       JSON.stringify(value);
+    
+    debug('Resolved placeholder', { 
+      placeholder: match, 
+      value: stringValue.substring(0, 50) + (stringValue.length > 50 ? '...' : '')
+    });
+    
+    return stringValue;
+  });
+}
+
+// Helper function to get a value from an object by path (e.g., "messages.0.body")
+function getValueByPath(obj: Record<string, any>, path: string): any {
+  const parts = path.split('.');
+  let current = obj;
+  
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      debug('Path resolution failed', { part, current });
+      return undefined;
+    }
+    
+    // Handle array indices
+    if (/^\d+$/.test(part)) {
+      const index = parseInt(part, 10);
+      if (Array.isArray(current) && index < current.length) {
+        current = current[index];
+      } else {
+        debug('Array index out of bounds', { part, arrayLength: Array.isArray(current) ? current.length : 'not an array' });
+        return undefined;
+      }
+    } else {
+      current = current[part];
+    }
+  }
+  
+  return current;
+}
+
+// Function to resolve placeholders in an object (recursively)
+function resolvePlaceholdersInObject(obj: Record<string, any>, context: Record<string, any>): Record<string, any> {
+  if (!obj || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  const result: Record<string, any> = Array.isArray(obj) ? [] : {};
+  
+  for (const key in obj) {
+    const value = obj[key];
+    
+    if (typeof value === 'string') {
+      result[key] = resolvePlaceholders(value, context);
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = resolvePlaceholdersInObject(value, context);
+    } else {
+      result[key] = value;
+    }
+  }
+  
+  return result;
+}
+
 serve(async (req) => {
   debug('Request received', {
     method: req.method,
@@ -36,7 +134,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the auth header - USING EXACT SAME PATTERN AS OTHER FUNCTIONS
+    // Create a Supabase client with the auth header
     debug('Creating Supabase client');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -188,6 +286,9 @@ serve(async (req) => {
     let currentElementId = startElementId;
     const executionResults = [];
     
+    // Create a context object to store outputs from each agent
+    const outputContext: Record<string, any> = {};
+    
     while (currentElementId) {
       debug('Processing element', { elementId: currentElementId });
       
@@ -230,8 +331,32 @@ serve(async (req) => {
           });
         }
         
-        // Execute the agent with its configuration (without processing inputs)
+        // Process the agent configuration to resolve any placeholders
+        const processedConfig = resolvePlaceholdersInObject(config.config, outputContext);
+        debug('Processed config with resolved placeholders', { 
+          original: JSON.stringify(config.config).substring(0, 100) + '...',
+          processed: JSON.stringify(processedConfig).substring(0, 100) + '...'
+        });
+        
+        // Execute the agent with its configuration
         if (agentType === 'text_generator') {
+          // Log the config we're about to send
+          debug('Text generator config', { 
+            hasPrompt: !!processedConfig.prompt,
+            hasModel: !!processedConfig.model,
+            hasApiKey: !!processedConfig.apiKey || !!processedConfig.api_key,
+            provider: processedConfig.provider || 'openai'
+          });
+
+          // Check which API key property is available
+          const apiKeyToUse = processedConfig.apiKey || processedConfig.api_key;
+          
+          debug('API key details', {
+            apiKeyProperty: processedConfig.apiKey ? 'apiKey' : (processedConfig.api_key ? 'api_key' : 'none'),
+            apiKeyLength: apiKeyToUse ? apiKeyToUse.length : 0,
+            apiKeyStart: apiKeyToUse ? apiKeyToUse.substring(0, 5) + '...' : 'none'
+          });
+
           const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-text`, {
             method: 'POST',
             headers: {
@@ -240,14 +365,86 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              prompt: config.config.prompt,
-              model: config.config.model,
-              apiKey: config.config.apiKey,
-              provider: config.config.provider
+              prompt: processedConfig.prompt,
+              model: processedConfig.model,
+              apiKey: apiKeyToUse, // Use whichever property is available
+              provider: processedConfig.provider || 'openai'
             })
           });
           
-          result = await response.json();
+          // Log the raw response for debugging
+          const responseText = await response.text();
+          debug('Raw text generator response', { 
+            status: response.status,
+            responseText: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
+          });
+          
+          // Parse the response
+          try {
+            result = JSON.parse(responseText);
+            
+            // Store the result in the context
+            outputContext[currentElementId] = result;
+            
+            // Also store the text in the input namespace for easier access
+            if (!outputContext.input) {
+              outputContext.input = {};
+            }
+            
+            if (result && result.text) {
+              outputContext.input.text = result.text;
+              debug('Stored text in context', { 
+                textLength: result.text.length,
+                textPreview: result.text.substring(0, 50) + (result.text.length > 50 ? '...' : ''),
+                inputNamespace: JSON.stringify(outputContext.input).substring(0, 200) + '...'
+              });
+              
+              // Dump the full context structure for debugging
+              debug('Full context structure after storing text', {
+                contextKeys: Object.keys(outputContext),
+                inputExists: !!outputContext.input,
+                inputKeys: outputContext.input ? Object.keys(outputContext.input) : [],
+                textExists: !!outputContext.input?.text,
+                textLength: outputContext.input?.text?.length || 0
+              });
+            } else {
+              debug('No text in result', { result: JSON.stringify(result).substring(0, 100) });
+              outputContext.input.text = '';
+            }
+          } catch (e) {
+            debug('Error parsing response JSON', { error: e.message, responseText });
+            result = { error: 'Failed to parse response', rawResponse: responseText };
+          }
+          
+          // Store the result in the context for future agents to use
+          outputContext[currentElementId] = result;
+          
+          // Also store a simplified version for easier access via input.text
+          if (!outputContext.input) {
+            outputContext.input = {};
+          }
+          
+          // Check if we got a successful result with text
+          if (result && typeof result === 'object' && 'text' in result) {
+            outputContext.input.text = result.text;
+            debug('Stored text in context', { 
+              textLength: result.text.length,
+              textPreview: result.text.substring(0, 50) + (result.text.length > 50 ? '...' : ''),
+              inputNamespace: JSON.stringify(outputContext.input)
+            });
+          } else {
+            // If there was an error or no text, store that information
+            outputContext.input.text = `Error: ${result.error || 'No text generated'}`;
+            debug('No text in result, storing error message', { error: result.error });
+          }
+
+          // Add this after storing the text in context
+          debug('Context after storing text', {
+            hasInputNamespace: !!outputContext.input,
+            hasTextInInput: !!outputContext.input?.text,
+            textLength: outputContext.input?.text?.length || 0,
+            inputKeys: outputContext.input ? Object.keys(outputContext.input) : []
+          });
         } 
         else if (agentType === 'gmail_reader') {
           const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/read-gmail`, {
@@ -258,13 +455,30 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              fromEmail: config.config.fromEmail,
-              maxResults: config.config.maxResults,
-              onlyUnread: config.config.onlyUnread
+              fromEmail: processedConfig.fromEmail,
+              maxResults: processedConfig.maxResults,
+              onlyUnread: processedConfig.onlyUnread
             })
           });
           
           result = await response.json();
+          
+          // Store the result in the context for future agents to use
+          outputContext[currentElementId] = result;
+          
+          // Also store a simplified version for easier access via input.messages
+          if (result.messages) {
+            // Make sure the input namespace exists
+            if (!outputContext.input) {
+              outputContext.input = {};
+            }
+            outputContext.input.messages = result.messages;
+          }
+          
+          debug('Stored gmail reader output in context', { 
+            messageCount: result.messages?.length,
+            contextKeys: Object.keys(outputContext)
+          });
         }
         else if (agentType === 'gmail_sender') {
           const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-gmail`, {
@@ -275,13 +489,28 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               elementId: currentElementId,
-              to: config.config.to || config.config.testRecipient,
-              subject: config.config.subject || config.config.testSubject,
-              body: config.config.body || config.config.testBody
+              to: processedConfig.to || processedConfig.testRecipient,
+              subject: processedConfig.subject || processedConfig.testSubject,
+              body: processedConfig.body || processedConfig.testBody
             })
           });
           
           result = await response.json();
+          
+          // Store the result in the context
+          outputContext[currentElementId] = result;
+          
+          // Also store in the input namespace
+          if (!outputContext.input) {
+            outputContext.input = {};
+          }
+          outputContext.input.emailResult = result;
+          
+          debug('Stored gmail sender output in context', { 
+            success: result.success,
+            messageId: result.messageId,
+            contextKeys: Object.keys(outputContext)
+          });
         }
         // Add more agent types as needed
       }
@@ -290,6 +519,13 @@ serve(async (req) => {
       executionResults.push({
         elementId: currentElementId,
         result
+      });
+      
+      // Debug the current state of the context
+      debug('Current output context', {
+        keys: Object.keys(outputContext),
+        inputKeys: outputContext.input ? Object.keys(outputContext.input) : 'no input namespace',
+        contextSize: JSON.stringify(outputContext).length
       });
       
       // Move to the next element in the workflow
