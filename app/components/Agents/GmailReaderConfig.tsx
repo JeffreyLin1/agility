@@ -13,6 +13,7 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
   const [fromEmail, setFromEmail] = useState('');
   const [maxResults, setMaxResults] = useState(5);
   const [onlyUnread, setOnlyUnread] = useState(true);
+  const [setAsTrigger, setSetAsTrigger] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
           if (data.config.fromEmail) setFromEmail(data.config.fromEmail);
           if (data.config.maxResults) setMaxResults(data.config.maxResults);
           if (data.config.onlyUnread !== undefined) setOnlyUnread(data.config.onlyUnread);
+          if (data.config.setAsTrigger !== undefined) setSetAsTrigger(data.config.setAsTrigger);
         }
       } catch (err) {
         console.log('No saved configuration found or error loading configuration');
@@ -112,6 +114,7 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
             fromEmail: fromEmail.trim(),
             maxResults,
             onlyUnread,
+            setAsTrigger,
             gmail_authorized: isAuthorized
           }
         })
@@ -295,6 +298,24 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
           <label htmlFor="onlyUnread" className="ml-2 text-sm font-medium text-black">Only show unread emails</label>
+        </div>
+        
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="setAsTrigger"
+            checked={setAsTrigger}
+            onChange={(e) => setSetAsTrigger(e.target.checked)}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label htmlFor="setAsTrigger" className="ml-2 text-sm font-medium text-black">
+            Set as workflow trigger
+          </label>
+          {setAsTrigger && (
+            <div className="ml-2 text-xs text-gray-500 italic">
+              (This agent will automatically start the workflow when new emails arrive)
+            </div>
+          )}
         </div>
         
         {/* Save Configuration Button */}

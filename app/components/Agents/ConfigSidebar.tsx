@@ -39,21 +39,21 @@ export default function ConfigSidebar({ isOpen, onClose, elementId, agentId }: C
           />
         )}
         
-        {isOpen && elementId && agentId === '21' && (
+        {isOpen && elementId && agentId === '2' && (
           <GmailSenderConfig 
             elementId={elementId} 
             onClose={onClose} 
           />
         )}
         
-        {isOpen && elementId && agentId === '22' && (
+        {isOpen && elementId && agentId === '3' && (
           <GmailReaderConfig 
             elementId={elementId} 
             onClose={onClose} 
           />
         )}
         
-        {isOpen && (!elementId || (agentId !== '1' && agentId !== '21' && agentId !== '22')) && (
+        {isOpen && (!elementId || (agentId !== '1' && agentId !== '2' && agentId !== '3')) && (
           <div className="flex items-center justify-center h-full">
             <p className="text-gray-500">No configuration available for this agent</p>
           </div>
