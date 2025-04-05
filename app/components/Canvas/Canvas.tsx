@@ -405,6 +405,7 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
               'Authorization': `Bearer ${session.access_token}`
             },
             body: JSON.stringify({
+              workflowId: savedWorkflowId,
               sourceElementId: connection.sourceId,
               targetElementId: connection.targetId
             })

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import InputStructureDisplay from './InputStructureDisplay';
 
 interface GmailSenderConfigProps {
   elementId: string;
@@ -19,6 +20,10 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
   const [isSaved, setIsSaved] = useState(false);
   
   const { session } = useAuth();
+  
+  // Add refs for the subject and body inputs
+  const subjectInputRef = useRef<HTMLInputElement>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Check if Gmail is already authorized
   useEffect(() => {
@@ -85,6 +90,48 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
     
     loadConfig();
   }, [session, elementId]);
+  
+  // Handle inserting field into subject or body
+  const handleInsertField = (fieldPath: string) => {
+    // Determine which field is currently focused
+    if (document.activeElement === subjectInputRef.current) {
+      // Insert into subject field
+      const input = subjectInputRef.current;
+      const start = input?.selectionStart || 0;
+      const end = input?.selectionEnd || 0;
+      
+      // Insert the field at cursor position or replace selected text
+      const newSubject = testSubject.substring(0, start) + fieldPath + testSubject.substring(end);
+      setTestSubject(newSubject);
+      
+      // Focus the input and set cursor position after the inserted field
+      setTimeout(() => {
+        if (input) {
+          input.focus();
+          const newCursorPosition = start + fieldPath.length;
+          input.setSelectionRange(newCursorPosition, newCursorPosition);
+        }
+      }, 0);
+    } else {
+      // Default to inserting into body textarea
+      const textarea = bodyTextareaRef.current;
+      const start = textarea?.selectionStart || 0;
+      const end = textarea?.selectionEnd || 0;
+      
+      // Insert the field at cursor position or replace selected text
+      const newBody = testBody.substring(0, start) + fieldPath + testBody.substring(end);
+      setTestBody(newBody);
+      
+      // Focus the textarea and set cursor position after the inserted field
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          const newCursorPosition = start + fieldPath.length;
+          textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+        }
+      }, 0);
+    }
+  };
   
   // Save configuration
   const saveConfiguration = async () => {
@@ -230,6 +277,9 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
     <div className="p-4">
       <h2 className="text-lg font-semibold mb-4 text-black">Gmail Sender Configuration</h2>
       
+      {/* Input Structure Display */}
+      <InputStructureDisplay elementId={elementId} onInsertField={handleInsertField} />
+      
       {/* Authorization Status */}
       <div className={`mb-4 p-4 rounded-md border ${isAuthorized ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className="flex items-center justify-between">
@@ -282,10 +332,11 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
         <div>
           <label className="block text-sm font-medium mb-1 text-black">Subject</label>
           <input
+            ref={subjectInputRef}
             type="text"
             value={testSubject}
             onChange={(e) => setTestSubject(e.target.value)}
-            placeholder="Email subject"
+            placeholder="Email subject (click on input fields above to insert variables)"
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
           />
         </div>
@@ -293,9 +344,10 @@ export default function GmailSenderConfig({ elementId, onClose }: GmailSenderCon
         <div>
           <label className="block text-sm font-medium mb-1 text-black">Email Body</label>
           <textarea
+            ref={bodyTextareaRef}
             value={testBody}
             onChange={(e) => setTestBody(e.target.value)}
-            placeholder="Email content..."
+            placeholder="Email content... (click on input fields above to insert variables)"
             rows={5}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
           />
