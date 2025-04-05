@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import InputStructureDisplay from './InputStructureDisplay';
 
 interface TextGeneratorConfigProps {
   elementId: string;
@@ -27,6 +28,8 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
   const [apiProvider, setApiProvider] = useState('openai'); // 'openai' or 'anthropic'
   
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
+  
   const { session } = useAuth();
   
   // Update API provider when model changes
@@ -37,6 +40,29 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       setApiProvider('openai');
     }
   }, [selectedModel]);
+  
+  // Handle inserting field into prompt
+  const handleInsertField = (fieldPath: string) => {
+    if (promptTextareaRef.current) {
+      const textarea = promptTextareaRef.current;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      
+      // Insert the field at cursor position or replace selected text
+      const newPrompt = prompt.substring(0, start) + fieldPath + prompt.substring(end);
+      setPrompt(newPrompt);
+      
+      // Focus the textarea and set cursor position after the inserted field
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPosition = start + fieldPath.length;
+        textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+      }, 0);
+    } else {
+      // If ref not available, just append to the end
+      setPrompt(prompt + fieldPath);
+    }
+  };
   
   // Load the API key and model using the Edge Function
   useEffect(() => {
@@ -194,29 +220,11 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
   };
   
   return (
-    <div className="w-full">
-      <div className="mb-4">
-        <h3 className="font-bold text-lg text-black">Text Generator</h3>
-        <p className="text-sm text-gray-600">Configure your Text Generator agent</p>
-      </div>
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-4 text-black">Text Generator Configuration</h2>
       
-      {/* Model Selection */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Model
-        </label>
-        <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-        >
-          {AVAILABLE_MODELS.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Input Structure Display */}
+      <InputStructureDisplay elementId={elementId} onInsertField={handleInsertField} />
       
       {/* API Key Input */}
       <div className="mb-4">
@@ -228,8 +236,26 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={`Enter your ${apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'} API key`}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
         />
+      </div>
+      
+      {/* Model Selection */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Model
+        </label>
+        <select
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
+        >
+          {AVAILABLE_MODELS.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
+        </select>
       </div>
       
       {/* Prompt Input */}
@@ -238,9 +264,10 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
           Prompt
         </label>
         <textarea
+          ref={promptTextareaRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your prompt here"
+          placeholder="Enter your prompt here. Click on input fields above to insert them."
           rows={6}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
         />
@@ -287,8 +314,8 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
       {/* Response Output */}
       {response && (
         <div className="mb-4">
-          <h3 className="text-md font-medium mb-2">Generated Text</h3>
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md whitespace-pre-line">
+          <h3 className="text-md font-medium mb-2 text-black">Generated Text</h3>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md whitespace-pre-line text-black">
             {response}
           </div>
         </div>

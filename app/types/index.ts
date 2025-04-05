@@ -62,3 +62,17 @@ export interface Connection {
     elements: [],
     connections: []
   };
+
+// Define output structure types for different agents
+export interface AgentOutputStructure {
+  type: string;
+  fields: AgentOutputField[];
+  description?: string;
+}
+
+export interface AgentOutputField {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description?: string;
+  required?: boolean;
+}
