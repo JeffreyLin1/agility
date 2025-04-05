@@ -311,39 +311,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Helper function to process configuration with input variables
-function processConfigWithInputs(config, prevOutput) {
-  if (!prevOutput) return config;
-  
-  const processedConfig = { ...config };
-  
-  // Process each field in the config
-  for (const [key, value] of Object.entries(processedConfig)) {
-    if (typeof value === 'string') {
-      processedConfig[key] = replaceVariables(value, prevOutput);
-    }
-  }
-  
-  return processedConfig;
-}
-
-// Helper function to replace variables in a string
-function replaceVariables(text, inputData) {
-  if (!text || typeof text !== 'string') return text;
-  
-  return text.replace(/{{input\.(.*?)}}/g, (match, path) => {
-    const pathParts = path.split('.');
-    let value = inputData;
-    
-    for (const part of pathParts) {
-      if (value && typeof value === 'object' && part in value) {
-        value = value[part];
-      } else {
-        return match; // Keep the original placeholder if path not found
-      }
-    }
-    
-    return typeof value === 'string' ? value : JSON.stringify(value);
-  });
-} 
