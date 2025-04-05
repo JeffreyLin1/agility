@@ -162,58 +162,32 @@ export default function TextGeneratorConfig({ elementId, onClose }: TextGenerato
     setResponse(null);
     
     try {
-      // Use the prompt directly without enhancing it with Gmail data
-      let response;
-      let data;
-      
-      if (apiProvider === 'openai') {
-        // Call OpenAI API
-        response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 500
-          })
-        });
-        
-        data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error?.message || 'Failed to generate text');
-        }
-        
-        const generatedText = data.choices[0]?.message?.content || 'No response generated';
-        setResponse(generatedText);
-      } else if (apiProvider === 'anthropic') {
-        // Call Anthropic API
-        response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 500
-          })
-        });
-        
-        data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error?.message || 'Failed to generate text');
-        }
-        
-        const generatedText = data.content[0]?.text || 'No response generated';
-        setResponse(generatedText);
+      if (!session?.access_token) {
+        throw new Error('You must be logged in to test the agent');
       }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          elementId,
+          apiKey,
+          model: selectedModel,
+          prompt,
+          testMode: true
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate text');
+      }
+      
+      setResponse(data.text);
     } catch (err: any) {
       setError(err.message || 'Failed to test agent');
     } finally {
