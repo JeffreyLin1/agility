@@ -127,20 +127,6 @@ export default function InputStructureDisplay({ elementId, onInsertField }: Inpu
     return <div className="text-sm text-gray-500">Loading input structure...</div>;
   }
   
-  if (error) {
-    return (
-      <div>
-        <div className="text-sm text-red-500 mb-2">Error: {error}</div>
-        <button 
-          onClick={() => fetchInputStructure()} 
-          className="px-2 py-1 bg-black text-white rounded text-xs"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-  
   if (!inputStructure) {
     return <div className="text-sm text-gray-500">No incoming connections found.</div>;
   }
