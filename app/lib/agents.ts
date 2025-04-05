@@ -17,5 +17,11 @@ export const availableAgents = [
     name: 'Gmail Reader',
     description: 'Reads emails from specific senders in Gmail',
     color: '#ecfdf5'
+  },
+  {
+    id: '4',
+    name: 'Discord Messenger',
+    description: 'Sends messages to Discord servers via webhooks',
+    color: '#eef2ff'
   }
 ]; 

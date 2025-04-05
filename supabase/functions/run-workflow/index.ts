@@ -582,6 +582,84 @@ serve(async (req) => {
             contextKeys: Object.keys(outputContext)
           });
         }
+        else if (agentType === 'discord_messenger') {
+          debug('Preparing Discord messenger request', { 
+            elementId: currentElementId,
+            hasWebhookUrl: !!processedConfig.webhookUrl,
+            webhookUrlLength: processedConfig.webhookUrl ? processedConfig.webhookUrl.length : 0,
+            hasUsername: !!processedConfig.username,
+            hasAvatarUrl: !!processedConfig.avatarUrl,
+            hasContent: !!(processedConfig.content || processedConfig.messageContent),
+            contentLength: (processedConfig.content || processedConfig.messageContent || '').length
+          });
+          
+          const discordPayload = {
+            elementId: currentElementId,
+            webhookUrl: processedConfig.webhookUrl,
+            username: processedConfig.username || '',
+            avatarUrl: processedConfig.avatarUrl || '',
+            content: processedConfig.content || processedConfig.messageContent
+          };
+          
+          debug('Discord messenger payload', discordPayload);
+          
+          try {
+            const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-discord`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authHeader
+              },
+              body: JSON.stringify(discordPayload)
+            });
+            
+            debug('Discord messenger response status', { 
+              status: response.status, 
+              statusText: response.statusText,
+              headers: Object.fromEntries([...response.headers])
+            });
+            
+            const responseText = await response.text();
+            debug('Discord messenger raw response', { responseText });
+            
+            try {
+              result = JSON.parse(responseText);
+            } catch (parseError) {
+              debug('Error parsing Discord response', parseError);
+              result = { 
+                success: false, 
+                error: 'Failed to parse response',
+                rawResponse: responseText
+              };
+            }
+            
+            debug('Discord messenger parsed result', result);
+            
+            // Store the result in the context
+            outputContext[currentElementId] = result;
+            
+            // Also store in the input namespace
+            if (!outputContext.input) {
+              outputContext.input = {};
+            }
+            outputContext.input.discordResult = result;
+            
+            debug('Stored discord messenger output in context', { 
+              success: result.success,
+              messageId: result.messageId,
+              contextKeys: Object.keys(outputContext)
+            });
+          } catch (error) {
+            debug('Error calling Discord messenger function', error);
+            result = { 
+              success: false, 
+              error: error instanceof Error ? error.message : 'Unknown error'
+            };
+            outputContext[currentElementId] = result;
+            if (!outputContext.input) outputContext.input = {};
+            outputContext.input.discordResult = result;
+          }
+        }
         // Add more agent types as needed
       }
       

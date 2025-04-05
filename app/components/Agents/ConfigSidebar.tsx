@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import TextGeneratorConfig from './TextGeneratorConfig';
 import GmailSenderConfig from './GmailSenderConfig';
 import GmailReaderConfig from './GmailReaderConfig';
+import DiscordMessengerConfig from './DiscordMessengerConfig';
 
 interface ConfigSidebarProps {
   isOpen: boolean;
@@ -11,6 +12,23 @@ interface ConfigSidebarProps {
 }
 
 export default function ConfigSidebar({ isOpen, onClose, elementId, agentId }: ConfigSidebarProps) {
+  const renderAgentConfig = () => {
+    if (!elementId) return null;
+    
+    switch (agentId) {
+      case '1':
+        return <TextGeneratorConfig elementId={elementId} onClose={onClose} />;
+      case '2':
+        return <GmailSenderConfig elementId={elementId} onClose={onClose} />;
+      case '3':
+        return <GmailReaderConfig elementId={elementId} onClose={onClose} />;
+      case '4':
+        return <DiscordMessengerConfig elementId={elementId} onClose={onClose} />;
+      default:
+        return <div className="p-4">Unknown agent type</div>;
+    }
+  };
+
   return (
     <div 
       className={`fixed right-0 top-0 h-full bg-white border-l-2 border-black shadow-lg z-30 transition-all duration-300 ease-in-out ${
@@ -32,28 +50,9 @@ export default function ConfigSidebar({ isOpen, onClose, elementId, agentId }: C
       </div>
       
       <div className="p-4 overflow-y-auto" style={{ height: 'calc(100% - 70px)' }}>
-        {isOpen && elementId && agentId === '1' && (
-          <TextGeneratorConfig 
-            elementId={elementId} 
-            onClose={onClose} 
-          />
-        )}
+        {renderAgentConfig()}
         
-        {isOpen && elementId && agentId === '2' && (
-          <GmailSenderConfig 
-            elementId={elementId} 
-            onClose={onClose} 
-          />
-        )}
-        
-        {isOpen && elementId && agentId === '3' && (
-          <GmailReaderConfig 
-            elementId={elementId} 
-            onClose={onClose} 
-          />
-        )}
-        
-        {isOpen && (!elementId || (agentId !== '1' && agentId !== '2' && agentId !== '3')) && (
+        {isOpen && (!elementId || (agentId !== '1' && agentId !== '2' && agentId !== '3' && agentId !== '4')) && (
           <div className="flex items-center justify-center h-full">
             <p className="text-gray-500">No configuration available for this agent</p>
           </div>

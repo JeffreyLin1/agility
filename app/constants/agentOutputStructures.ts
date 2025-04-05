@@ -62,3 +62,28 @@ export const gmailReaderOutputStructure: AgentOutputStructure = {
     }
   ]
 };
+
+// Discord Messenger output structure
+export const discordMessengerOutputStructure: AgentOutputStructure = {
+  description: "Access data from the Discord Messenger agent",
+  fields: [
+    {
+      name: "success",
+      type: "boolean",
+      description: "Whether the message was sent successfully",
+      required: true
+    },
+    {
+      name: "messageId",
+      type: "string",
+      description: "ID of the sent Discord message",
+      required: false
+    },
+    {
+      name: "timestamp",
+      type: "string",
+      description: "Timestamp when the message was sent",
+      required: true
+    }
+  ]
+};

@@ -3,7 +3,8 @@ import { useAuth } from '@/app/context/AuthContext';
 import { AgentOutputStructure } from '@/app/types';
 import { 
   textGeneratorOutputStructure, 
-  gmailReaderOutputStructure 
+  gmailReaderOutputStructure,
+  discordMessengerOutputStructure
 } from '@/app/constants/agentOutputStructures';
 
 interface InputStructureDisplayProps {
@@ -103,6 +104,8 @@ export default function InputStructureDisplay({ elementId, onInsertField }: Inpu
           outputStructure = textGeneratorOutputStructure;
         } else if (sourceElement.data.name === 'Gmail Reader') {
           outputStructure = gmailReaderOutputStructure;
+        } else if (sourceElement.data.name === 'Discord Messenger') {
+          outputStructure = discordMessengerOutputStructure;
         }
         
         setInputStructure(outputStructure);
