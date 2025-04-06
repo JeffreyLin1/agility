@@ -68,7 +68,7 @@ export default function DiscordMessengerConfig({ elementId, onClose }: DiscordMe
       
       const newValue = 
         messageContent.substring(0, startPos) + 
-        `{{${fieldPath}}}` + 
+        `${fieldPath}` + 
         messageContent.substring(endPos);
       
       setMessageContent(newValue);
@@ -191,140 +191,144 @@ export default function DiscordMessengerConfig({ elementId, onClose }: DiscordMe
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4 text-black">Discord Messenger Configuration</h2>
+    <div className="font-mono">
       
       {/* Input Structure Display */}
-      <InputStructureDisplay elementId={elementId} onInsertField={handleInsertField} />
+
+        <InputStructureDisplay elementId={elementId} onInsertField={handleInsertField} />
       
       {/* Configuration Form */}
-      <div className="space-y-4 mb-6">
+      <div className="space-y-5 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Discord Webhook URL <span className="text-red-500">*</span></label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">
+            Discord Webhook URL <span className="text-red-600">*</span>
+          </label>
           <input
             type="text"
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
             placeholder="https://discord.com/api/webhooks/..."
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-black">
             Create a webhook in your Discord server settings and paste the URL here.
           </p>
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Bot Username (Optional)</label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">Bot Username</label>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Workflow Bot"
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-black">
             Custom name for the webhook bot. Leave empty to use the webhook's default name.
           </p>
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Avatar URL (Optional)</label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">Avatar URL</label>
           <input
             type="text"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
             placeholder="https://example.com/avatar.png"
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-black">
             Custom avatar image URL. Leave empty to use the webhook's default avatar.
           </p>
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Message Content <span className="text-red-500">*</span></label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">
+            Message Content <span className="text-red-600">*</span>
+          </label>
           <textarea
             ref={messageContentTextareaRef}
             value={messageContent}
             onChange={(e) => setMessageContent(e.target.value)}
             placeholder="Enter your message content here. Click on input fields above to insert variables."
             rows={5}
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
         </div>
       </div>
       
-      {/* Save Configuration Button */}
-      <div className="mb-4">
+      {/* Buttons Container - Grid Layout */}
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        {/* Save Configuration Button */}
         <button
           onClick={saveConfiguration}
           disabled={isSaving || !webhookUrl.trim()}
-          className={`w-full px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 ${
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm col-span-2 ${
             (isSaving || !webhookUrl.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
         >
-          {isSaving ? 'Saving...' : 'Save Configuration'}
+          {isSaving ? 'SAVING...' : 'SAVE CONFIG'}
         </button>
-        {isSaved && (
-          <div className="mt-2 text-sm text-green-600">
-            Configuration saved successfully!
-          </div>
-        )}
-      </div>
-      
-      {/* Test Button */}
-      <div className="mb-4">
+        
+        {/* Test Agent Button */}
         <button
           onClick={sendTestMessage}
           disabled={isLoading || !webhookUrl.trim() || !messageContent.trim()}
-          className={`w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm ${
             (isLoading || !webhookUrl.trim() || !messageContent.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
         >
           {isLoading ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Sending...
+              SENDING...
             </span>
           ) : (
-            'Test Agent'
+            'TEST AGENT'
           )}
         </button>
-      </div>
-      
-      {/* Test Workflow Button */}
-      <div className="mb-4 mt-2">
+        
+        {/* Test Workflow Button */}
         <button
           onClick={testWorkflow}
           disabled={isWorkflowRunning || !webhookUrl.trim() || !messageContent.trim()}
-          className={`w-full px-4 py-2 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 ${
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm ${
             (isWorkflowRunning || !webhookUrl.trim() || !messageContent.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
         >
           {isWorkflowRunning ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Running Workflow...
+              RUNNING...
             </span>
           ) : (
-            'Test Workflow'
+            'TEST WORKFLOW'
           )}
         </button>
       </div>
       
+      {/* Saved Confirmation */}
+      {isSaved && (
+        <div className="mb-5 text-sm text-green-600 border-2 border-green-600 p-2 bg-green-50 font-bold rounded-sm">
+          CONFIGURATION SAVED
+        </div>
+      )}
+      
       {/* Error Message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-800 rounded-md">
+        <div className="mb-5 p-3 bg-white border-2 border-red-600 text-red-600 font-bold rounded-sm">
           <div className="flex">
-            <svg className="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
+            <span className="mr-2">⚠️</span>
             {error}
           </div>
         </div>
@@ -332,11 +336,9 @@ export default function DiscordMessengerConfig({ elementId, onClose }: DiscordMe
       
       {/* Success Message */}
       {response && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-800 rounded-md">
+        <div className="mb-5 p-3 bg-white border-2 border-green-600 text-green-600 font-bold rounded-sm">
           <div className="flex">
-            <svg className="h-5 w-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
+            <span className="mr-2">✓</span>
             {response}
           </div>
         </div>

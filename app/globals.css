@@ -79,3 +79,14 @@ h1, h2, h3, h4, h5, h6 {
 .animate-scaleIn {
   animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
+
+/* Add this new animation for the moving dashed border */
+@keyframes dash-animation {
+  to {
+    stroke-dashoffset: -30;
+  }
+}
+
+.animate-border-pulse {
+  animation: dash-animation 1s linear infinite;
+}

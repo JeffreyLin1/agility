@@ -253,11 +253,6 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
       window.removeEventListener('mouseup', handleCanvasMouseUp);
     };
   }, [isPanning, isConnecting, panStart, panOffset, connectionSource]);
-  
-  // Reset view handler
-  const resetView = () => {
-    setPanOffset({ x: 0, y: 0 });
-  };
 
   // Calculate grid offset to ensure the grid always appears to extend infinitely
   const gridOffsetX = panOffset.x % 20;
@@ -551,24 +546,13 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
         )}
       </div>
       
-      {/* Reset view button */}
-      <div className="absolute bottom-4 right-4 z-20 flex flex-col space-y-2 bg-white border-2 border-black rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-2">
-        <button 
-          className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded"
-          onClick={resetView}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          </svg>
-        </button>
-      </div>
-      
       {/* AI Workflow Generator Button - positioned next to the agents sidebar */}
       <div className="absolute top-4 left-4 z-20">
         <button 
           className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 transition-all"
           onClick={toggleAiPrompt}
           title="Ask AI to generate a workflow"
+          style={{ backgroundColor: 'white' }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -641,9 +625,10 @@ export default function Canvas({ workflow, onWorkflowChange }: CanvasProps) {
         <button
           onClick={saveWorkflow}
           disabled={isSaving}
-          className={`px-4 py-2 bg-black text-white text-sm font-medium rounded-md hover:bg-gray-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+          className={`px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
             isSaving ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black' }}
         >
           {isSaving ? (
             <span className="flex items-center">

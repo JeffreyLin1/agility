@@ -657,6 +657,90 @@ serve(async (req)=>{
             if (!outputContext.input) outputContext.input = {};
             outputContext.input.discordResult = result;
           }
+        } else if (agentType === 'github_reader') {
+          debug('Processing GitHub reader agent', { elementId: currentElementId });
+          
+          try {
+            // Get the agent configuration
+            const { data: agentConfig, error: configError } = await supabaseClient
+              .from('agent_configs')
+              .select('config')
+              .eq('user_id', user.id)
+              .eq('element_id', currentElementId)
+              .eq('agent_type', 'github_reader')
+              .maybeSingle();
+            
+            if (configError) {
+              debug('Error retrieving GitHub reader config', configError);
+              throw new Error(`Failed to retrieve GitHub configuration: ${configError.message}`);
+            }
+            
+            if (!agentConfig || !agentConfig.config) {
+              debug('No GitHub reader configuration found');
+              throw new Error('GitHub reader configuration not found');
+            }
+            
+            const processedConfig = {
+              accessToken: agentConfig.config.accessToken,
+              repository: agentConfig.config.repository,
+              branch: agentConfig.config.branch || 'main'
+            };
+            
+            debug('Calling read-github function', { 
+              repository: processedConfig.repository,
+              branch: processedConfig.branch
+            });
+            
+            const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/read-github`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authHeader
+              },
+              body: JSON.stringify({
+                elementId: currentElementId,
+                accessToken: processedConfig.accessToken,
+                repository: processedConfig.repository,
+                branch: processedConfig.branch
+              })
+            });
+            
+            // Parse the response
+            const responseText = await response.text();
+            try {
+              result = JSON.parse(responseText);
+              // Store the result in the context
+              outputContext[currentElementId] = result;
+              // Make sure the input namespace exists
+              if (!outputContext.input) {
+                outputContext.input = {};
+              }
+              // Store the GitHub data in the input namespace
+              outputContext.input.repoName = result.repoName;
+              outputContext.input.branch = result.branch;
+              outputContext.input.commits = result.commits;
+              outputContext.input.summary = result.summary;
+              
+              debug('GitHub reader result stored in context', {
+                repoName: result.repoName,
+                branch: result.branch,
+                commitCount: result.commits?.length || 0,
+                summary: result.summary
+              });
+            } catch (parseError) {
+              debug('Error parsing GitHub reader response', parseError);
+              throw new Error(`Failed to parse GitHub reader response: ${responseText}`);
+            }
+          } catch (error) {
+            debug('Error in GitHub reader agent', error);
+            result = {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error in GitHub reader'
+            };
+            outputContext[currentElementId] = result;
+            if (!outputContext.input) outputContext.input = {};
+            outputContext.input.githubError = result.error;
+          }
         }
       // Add more agent types as needed
       }

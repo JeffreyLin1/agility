@@ -31,6 +31,7 @@ export default function WorkflowNode({
   const [isDragging, setIsDragging] = useState(false);
   const [isHandleDragging, setIsHandleDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isHoveringTarget, setIsHoveringTarget] = useState(false);
   const baseWidth = 220;
   
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -190,11 +191,23 @@ export default function WorkflowNode({
     }
   };
   
+  // Add mouse enter/leave handlers for connection target hover effect
+  const handleMouseEnter = () => {
+    if (isConnecting && !isConnectionSource) {
+      setIsHoveringTarget(true);
+    }
+  };
+  
+  const handleMouseLeave = () => {
+    setIsHoveringTarget(false);
+  };
+  
   return (
     <>
       <div
         ref={nodeRef}
         className={`absolute bg-white border-2 ${
+          isConnectionTarget && isHoveringTarget ? 'border-blue-500 border-[3px] scale-[1.02]' : 
           isConnectionTarget ? 'border-blue-500' : 
           isConnectionSource ? 'border-green-500' : 
           'border-black'
@@ -209,13 +222,15 @@ export default function WorkflowNode({
           top: `${position.y}px`,
           width: `${baseWidth}px`,
           transform: 'translate(-50%, -50%)',
-          zIndex: isDragging ? 100 : 1,
+          zIndex: isDragging ? 100 : (isHoveringTarget ? 10 : 1),
         }}
         onMouseDown={handleMouseDown}
         onClick={handleNodeClick}
         onMouseUp={handleNodeMouseUp}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Connection handle */}
         <div 
@@ -244,12 +259,12 @@ export default function WorkflowNode({
         >
           <h3 className="font-bold text-black text-sm">{data.name}</h3>
           <div 
-            className="w-8 h-8 flex items-center justify-center border border-black rounded-full bg-white"
+            className="w-8 h-8 flex items-center justify-center border-2 border-black rounded-full bg-white"
           >
             {data.icon ? (
               <span>{data.icon}</span>
             ) : (
-              <span className="text-sm font-bold">{data.name.charAt(0)}</span>
+              <span className="text-sm font-bold text-black">{data.name.charAt(0)}</span>
             )}
           </div>
         </div>
@@ -262,22 +277,6 @@ export default function WorkflowNode({
         {/* Card footer */}
         <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
           <span className="text-xs font-medium text-gray-600">Agent</span>
-          <div className="flex space-x-1">
-            {onDelete && (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-gray-200"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </>

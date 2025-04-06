@@ -225,67 +225,64 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4 text-black">Gmail Reader Configuration</h2>
-      
+    <div className="font-mono">
       {/* Authorization Status */}
-      <div className={`mb-4 p-4 rounded-md border ${isAuthorized ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
+      <div className={`mb-5 p-4 rounded-sm border-2 ${isAuthorized ? 'border-black bg-white' : 'border-black bg-white'}`}>
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center">
               {isAuthorized ? (
                 <>
-                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                  <p className="font-medium text-blue-800">Connected to Gmail</p>
+                  <div className="w-3 h-3 bg-green-600 rounded-full mr-2"></div>
+                  <p className="font-bold text-black uppercase text-sm">Connected to Gmail</p>
                 </>
               ) : (
                 <>
-                  <div className="w-3 h-3 bg-amber-500 rounded-full mr-2"></div>
-                  <p className="font-medium text-amber-800">Gmail connection required</p>
+                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
+                  <p className="font-bold text-black uppercase text-sm">Gmail connection required</p>
                 </>
               )}
             </div>
             {isAuthorized && userEmail && (
-              <p className="text-sm text-blue-700 mt-1 ml-5">
-                Using account: <span className="font-medium">{userEmail}</span>
+              <p className="text-sm text-black mt-1 ml-5">
+                Using account: <span className="font-bold">{userEmail}</span>
               </p>
             )}
           </div>
           <button
             onClick={authorizeGmail}
-            className={`px-3 py-1.5 text-white text-sm font-medium rounded-md ${
-              isAuthorized 
-                ? 'bg-blue-600 hover:bg-blue-700' 
-                : 'bg-amber-600 hover:bg-amber-700'
-            }`}
+            className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm`}
+            style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
           >
-            {isAuthorized ? 'Reconnect Account' : 'Connect Gmail'}
+            {isAuthorized ? 'RECONNECT ACCOUNT' : 'CONNECT GMAIL'}
           </button>
         </div>
       </div>
       
-      {/* Email Search Form */}
-      <div className="space-y-4 mb-6 p-4 border border-gray-200 rounded-md bg-white">
+      {/* Configuration Form */}
+      <div className="space-y-5 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Search for emails from</label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">
+            Search for emails from <span className="text-red-600">*</span>
+          </label>
           <input
             type="email"
             value={fromEmail}
             onChange={(e) => setFromEmail(e.target.value)}
             placeholder="sender@example.com"
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1 text-black">Maximum results</label>
+          <label className="block font-bold mb-2 text-black uppercase text-sm">Maximum results</label>
           <input
             type="number"
             value={maxResults}
             onChange={(e) => setMaxResults(parseInt(e.target.value) || 5)}
             min="1"
             max="50"
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+            className="w-full p-3 border-2 border-black rounded-sm focus:ring-0 focus:outline-none focus:border-black text-black"
           />
         </div>
         
@@ -295,9 +292,9 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
             id="onlyUnread"
             checked={onlyUnread}
             onChange={(e) => setOnlyUnread(e.target.checked)}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            className="h-5 w-5 text-black focus:ring-0 border-2 border-black rounded-sm"
           />
-          <label htmlFor="onlyUnread" className="ml-2 text-sm font-medium text-black">Only show unread emails</label>
+          <label htmlFor="onlyUnread" className="ml-2 font-bold text-black uppercase text-sm">Only show unread emails</label>
         </div>
         
         <div className="flex items-center">
@@ -306,91 +303,90 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
             id="setAsTrigger"
             checked={setAsTrigger}
             onChange={(e) => setSetAsTrigger(e.target.checked)}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            className="h-5 w-5 text-black focus:ring-0 border-2 border-black rounded-sm"
           />
-          <label htmlFor="setAsTrigger" className="ml-2 text-sm font-medium text-black">
+          <label htmlFor="setAsTrigger" className="ml-2 font-bold text-black uppercase text-sm">
             Set as workflow trigger
           </label>
-          {setAsTrigger && (
-            <div className="ml-2 text-xs text-gray-500 italic">
-              (This agent will automatically start the workflow when new emails arrive)
-            </div>
-          )}
         </div>
-        
-        {/* Save Configuration Button */}
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={saveConfiguration}
-            disabled={isSaving || !fromEmail.trim()}
-            className={`px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 ${
-              (isSaving || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSaving ? 'Saving...' : 'Save Configuration'}
-          </button>
-        </div>
-        
-        {/* Save Success Message */}
-        {isSaved && (
-          <div className="mt-2 text-sm text-green-600">
-            Configuration saved successfully!
-          </div>
+        {setAsTrigger && (
+          <p className="mt-1 text-xs text-black ml-7">
+            This agent will automatically start the workflow when new emails arrive
+          </p>
         )}
       </div>
       
-      {/* Action Button */}
-      <div className="mb-4">
+      {/* Buttons Container - Grid Layout */}
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        {/* Save Configuration Button */}
+        <button
+          onClick={saveConfiguration}
+          disabled={isSaving || !fromEmail.trim()}
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm col-span-2 ${
+            (isSaving || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
+        >
+          {isSaving ? 'SAVING...' : 'SAVE CONFIG'}
+        </button>
+        
+        {/* Test Agent Button */}
         <button
           onClick={readEmails}
           disabled={isLoading || !isAuthorized || !fromEmail.trim()}
-          className={`w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 ${
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm ${
             (isLoading || !isAuthorized || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
         >
           {isLoading ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Loading...
+              LOADING...
             </span>
           ) : (
-            'Test Agent'
+            'TEST AGENT'
           )}
         </button>
-      </div>
-      
-      <div className="mb-4 mt-2">
+        
+        {/* Test Workflow Button */}
         <button
           onClick={testWorkflow}
           disabled={isWorkflowRunning || !isAuthorized || !fromEmail.trim()}
-          className={`w-full px-4 py-2 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 ${
+          className={`px-4 py-3 bg-white !bg-white text-black font-bold border-2 border-black hover:bg-gray-100 uppercase tracking-wide rounded-sm ${
             (isWorkflowRunning || !isAuthorized || !fromEmail.trim()) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
+          style={{ backgroundColor: 'white', color: 'black', fontWeight: 'bold' }}
         >
           {isWorkflowRunning ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Running Workflow...
+              RUNNING...
             </span>
           ) : (
-            'Test Workflow'
+            'TEST WORKFLOW'
           )}
         </button>
       </div>
       
+      {/* Saved Confirmation */}
+      {isSaved && (
+        <div className="mb-5 text-sm text-green-600 border-2 border-green-600 p-2 bg-green-50 font-bold rounded-sm">
+          CONFIGURATION SAVED
+        </div>
+      )}
+      
       {/* Error Message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-800 rounded-md">
+        <div className="mb-5 p-3 bg-white border-2 border-red-600 text-red-600 font-bold rounded-sm">
           <div className="flex">
-            <svg className="h-5 w-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
+            <span className="mr-2">⚠️</span>
             {error}
           </div>
         </div>
@@ -398,17 +394,17 @@ export default function GmailReaderConfig({ elementId, onClose }: GmailReaderCon
       
       {/* Email Results */}
       {messages.length > 0 && (
-        <div className="mt-4 border-t pt-4">
-          <h3 className="text-md font-medium mb-3">Emails from {fromEmail}</h3>
+        <div className="mt-5 border-t-2 border-black pt-4">
+          <h3 className="text-md font-bold mb-3 uppercase text-black">Emails from {fromEmail}</h3>
           <div className="space-y-3">
             {messages.map((message) => (
-              <div key={message.id} className="p-3 border border-gray-200 rounded-md bg-white shadow-sm hover:shadow-md transition-shadow">
-                <div className="font-medium text-blue-900">{message.subject}</div>
+              <div key={message.id} className="p-3 border-2 border-black rounded-sm bg-white">
+                <div className="font-bold text-black">{message.subject}</div>
                 <div className="text-xs text-gray-600">{new Date(message.date).toLocaleString()}</div>
-                <div className="mt-2 text-sm text-gray-800">{message.snippet}...</div>
+                <div className="mt-2 text-sm text-black">{message.snippet}...</div>
                 <details className="mt-2">
-                  <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">View full message</summary>
-                  <div className="mt-2 p-3 bg-blue-50 text-sm whitespace-pre-line border border-blue-100 rounded text-gray-800">
+                  <summary className="text-xs text-black cursor-pointer hover:underline font-bold">VIEW FULL MESSAGE</summary>
+                  <div className="mt-2 p-3 bg-gray-50 text-sm whitespace-pre-line border-2 border-black rounded-sm text-black">
                     {message.body}
                   </div>
                 </details>

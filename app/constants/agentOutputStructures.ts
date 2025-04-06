@@ -89,3 +89,99 @@ export const discordMessengerOutputStructure: AgentOutputStructure = {
     }
   ]
 };
+
+export const githubReaderOutputStructure: AgentOutputStructure = {
+  description: "Data from GitHub repository commits and changes.",
+  fields: [
+    {
+      name: "repoName",
+      type: "string",
+      description: "The name of the GitHub repository in format 'owner/repo'",
+      required: true
+    },
+    {
+      name: "branch",
+      type: "string",
+      description: "The branch name that was monitored",
+      required: true
+    },
+    {
+      name: "commits",
+      type: "array",
+      description: "Array of commit objects with details about each commit",
+      required: true
+    },
+    {
+      name: "commits[].id",
+      type: "string",
+      description: "The commit SHA identifier",
+      required: true
+    },
+    {
+      name: "commits[].message",
+      type: "string",
+      description: "The commit message",
+      required: true
+    },
+    {
+      name: "commits[].author",
+      type: "string",
+      description: "The author of the commit",
+      required: true
+    },
+    {
+      name: "commits[].timestamp",
+      type: "string",
+      description: "The timestamp when the commit was made",
+      required: true
+    },
+    {
+      name: "commits[].url",
+      type: "string",
+      description: "URL to view the commit on GitHub",
+      required: true
+    },
+    {
+      name: "commits[].files",
+      type: "array",
+      description: "Array of files changed in the commit",
+      required: false
+    },
+    {
+      name: "commits[].files[].filename",
+      type: "string",
+      description: "Name of the file that was changed",
+      required: false
+    },
+    {
+      name: "commits[].files[].status",
+      type: "string",
+      description: "Status of the change (added, modified, removed)",
+      required: false
+    },
+    {
+      name: "commits[].files[].additions",
+      type: "number",
+      description: "Number of lines added",
+      required: false
+    },
+    {
+      name: "commits[].files[].deletions",
+      type: "number",
+      description: "Number of lines deleted",
+      required: false
+    },
+    {
+      name: "summary",
+      type: "string",
+      description: "A summary of the changes in the repository",
+      required: false
+    },
+    {
+      name: "pusher",
+      type: "string",
+      description: "The GitHub username of the person who pushed the changes",
+      required: false
+    }
+  ]
+}; 

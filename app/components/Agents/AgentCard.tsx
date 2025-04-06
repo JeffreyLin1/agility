@@ -16,18 +16,20 @@ export default function AgentCard({ agent, onClick, onDragStart }: AgentCardProp
     >
       <div className="flex items-center space-x-3">
         <div 
-          className="w-12 h-12 flex items-center justify-center border border-black rounded"
+          className="w-12 h-12 flex items-center justify-center border-2 border-black rounded flex-shrink-0"
           style={{ backgroundColor: agent.color || '#ffffff' }}
         >
           {agent.icon ? (
-            <span>{agent.icon}</span>
+            <div className="flex items-center justify-center w-6 h-6 overflow-hidden">
+              <span className="text-black">{agent.icon}</span>
+            </div>
           ) : (
-            <span className="text-xl font-bold">{agent.name.charAt(0)}</span>
+            <span className="text-xl font-bold text-black">{agent.name.charAt(0)}</span>
           )}
         </div>
-        <div>
-          <h3 className="font-bold text-black">{agent.name}</h3>
-          <p className="text-sm text-black">{agent.description}</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-bold text-black truncate">{agent.name}</h3>
+          <p className="text-sm text-black line-clamp-2">{agent.description}</p>
         </div>
       </div>
     </div>

@@ -4,7 +4,8 @@ import { AgentOutputStructure } from '@/app/types';
 import { 
   textGeneratorOutputStructure, 
   gmailReaderOutputStructure,
-  discordMessengerOutputStructure
+  discordMessengerOutputStructure,
+  githubReaderOutputStructure
 } from '@/app/constants/agentOutputStructures';
 
 interface InputStructureDisplayProps {
@@ -106,6 +107,8 @@ export default function InputStructureDisplay({ elementId, onInsertField }: Inpu
           outputStructure = gmailReaderOutputStructure;
         } else if (sourceElement.data.name === 'Discord Messenger') {
           outputStructure = discordMessengerOutputStructure;
+        } else if (sourceElement.data.name === 'GitHub Reader') {
+          outputStructure = githubReaderOutputStructure;
         }
         
         setInputStructure(outputStructure);
@@ -127,42 +130,42 @@ export default function InputStructureDisplay({ elementId, onInsertField }: Inpu
   };
   
   if (isLoading) {
-    return <div className="text-sm text-gray-500">Loading input structure...</div>;
+    return <div className="text-sm text-black mb-5">Loading input structure...</div>;
   }
   
   if (!inputStructure) {
-    return <div className="text-sm text-gray-500">No incoming connections found.</div>;
+    return <div className="text-sm text-black mb-5">No incoming connections found.</div>;
   }
   
   return (
-    <div className="mt-4 mb-6 border border-gray-200 rounded-md p-4 bg-gray-50">
-      <h3 className="text-md font-medium mb-2 text-gray-800">
+    <div className="mt-4 mb-6 border-2 border-black rounded-sm p-4 bg-white">
+      <h3 className="text-md font-bold mb-2 text-black uppercase text-sm">
         Input from {sourceElementName}
       </h3>
-      <p className="text-sm text-gray-600 mb-2">{inputStructure.description}</p>
+      <p className="text-sm text-black mb-3">{inputStructure.description}</p>
       
       <div className="flex flex-wrap gap-2 mb-3">
         {inputStructure.fields.map((field) => (
           <button
             key={field.name}
             onClick={() => handleFieldClick(field.name)}
-            className="px-3 py-1.5 bg-white !bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-100 hover:border-gray-400 transition-colors flex items-center gap-1.5 shadow-sm"
+            className="px-3 py-1.5 bg-white !bg-white border-2 border-black rounded-sm text-sm hover:bg-gray-100 transition-colors flex items-center gap-1.5"
             style={{ backgroundColor: 'white' }}
             title={field.description || field.name}
           >
-            <span className="font-mono text-gray-800">{field.name}</span>
-            <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
+            <span className="font-mono text-black">{field.name}</span>
+            <span className="text-xs text-black bg-gray-100 px-1.5 py-0.5 rounded-sm border border-black">
               {field.type}
             </span>
             {field.required && (
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full" title="Required"></span>
+              <span className="w-1.5 h-1.5 bg-red-600 rounded-full" title="Required"></span>
             )}
           </button>
         ))}
       </div>
       
-      <div className="mt-3 text-sm text-gray-600">
-        <p>Click on a field to insert it into your prompt.</p>
+      <div className="mt-3 text-xs text-black">
+        <p>Click on a field to insert it into your content.</p>
       </div>
     </div>
   );

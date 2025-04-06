@@ -23,5 +23,11 @@ export const availableAgents = [
     name: 'Discord Messenger',
     description: 'Sends messages to Discord servers via webhooks',
     color: '#eef2ff'
+  },
+  {
+    id: '5',
+    name: 'GitHub Reader',
+    description: 'Reads push changes from a GitHub repository',
+    color: '#f8f0fc'
   }
 ]; 

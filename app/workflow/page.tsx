@@ -5,7 +5,6 @@ import { Workflow } from '../types';
 import { Header } from '../components/Layout';
 import { Canvas } from '../components/Canvas';
 import FloatingAgentPanel from '../components/Agents/FloatingAgentPanel';
-import TemplatesPanel from '@/app/components/Templates/TemplatesPanel';
 import { availableAgents } from '../lib/agents';
 
 const emptyWorkflow: Workflow = {
@@ -54,11 +53,6 @@ export default function WorkflowPage() {
         <FloatingAgentPanel 
           agents={agents} 
           onAgentDragStart={handleAgentDragStart}
-        />
-        
-        {/* Templates panel */}
-        <TemplatesPanel
-          onTemplateDragStart={handleTemplateDragStart}
         />
       </div>
     </div>
