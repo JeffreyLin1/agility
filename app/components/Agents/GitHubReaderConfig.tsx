@@ -8,6 +8,15 @@ interface GitHubReaderConfigProps {
   onClose?: () => void;
 }
 
+interface CommitFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes?: number;
+  patch?: string | null;
+}
+
 export default function GitHubReaderConfig({ elementId, onClose }: GitHubReaderConfigProps) {
   const [accessToken, setAccessToken] = useState('');
   const [repository, setRepository] = useState('');
@@ -494,7 +503,7 @@ export default function GitHubReaderConfig({ elementId, onClose }: GitHubReaderC
                   <div className="mt-2 text-xs">
                     <div className="font-bold text-gray-700">Files changed: {commit.files.length}</div>
                     <ul className="list-disc list-inside">
-                      {commit.files.slice(0, 3).map((file, fileIndex) => (
+                      {commit.files.slice(0, 3).map((file: CommitFile, fileIndex) => (
                         <li key={fileIndex} className="text-gray-600">
                           {file.filename} ({file.status}: +{file.additions} -{file.deletions})
                         </li>
