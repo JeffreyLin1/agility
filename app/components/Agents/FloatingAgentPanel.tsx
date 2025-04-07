@@ -89,6 +89,7 @@ export default function FloatingAgentPanel({ agents, onAgentDragStart, onTemplat
         {!isCollapsed && <h3 className="font-bold text-black">{tabs.find(tab => tab.id === activeTab)?.label}</h3>}
         <button 
           className="ml-auto p-1 hover:bg-gray-100 rounded"
+          style={{ backgroundColor: 'white', color: 'black' }}
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
           {isCollapsed ? (
@@ -141,9 +142,9 @@ export default function FloatingAgentPanel({ agents, onAgentDragStart, onTemplat
         ))}
       </div>
       
-      {!isCollapsed && activeTab === 'agents' && (
+      {!isCollapsed && (
         <>
-          {/* Search input */}
+          {/* Search input - now appears on all tabs */}
           <div className="p-2 border-b border-gray-200">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -153,48 +154,49 @@ export default function FloatingAgentPanel({ agents, onAgentDragStart, onTemplat
               </div>
               <input 
                 type="search" 
-                className="block w-full p-2 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:ring-black focus:border-black" 
-                placeholder="Search agents..." 
+                className="block w-full p-2 pl-10 text-sm text-gray-900 border-2 border-black rounded-md bg-white focus:ring-0 focus:outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+                placeholder={`Search ${activeTab}...`} 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
           
-          {/* Agent list - height set to show approximately 4 agents */}
-          <div className="max-h-[520px] overflow-y-auto">
-            <AgentList 
-              agents={filteredAgents} 
-              onAgentDragStart={onAgentDragStart}
-            />
-            {filteredAgents.length === 0 && (
-              <div className="p-4 text-center text-gray-500">
-                No agents found matching "{searchQuery}"
-              </div>
-            )}
-          </div>
+          {activeTab === 'agents' && (
+            <div className="max-h-[520px] overflow-y-auto">
+              <AgentList 
+                agents={filteredAgents} 
+                onAgentDragStart={onAgentDragStart}
+              />
+              {filteredAgents.length === 0 && (
+                <div className="p-4 text-center text-gray-500">
+                  No agents found matching "{searchQuery}"
+                </div>
+              )}
+            </div>
+          )}
+          
+          {activeTab === 'templates' && (
+            <div className="p-3 space-y-3 max-h-[520px] overflow-y-auto">
+              {templates.map((template) => (
+                <WorkflowTemplate
+                  key={template.id}
+                  name={template.name}
+                  description="Chain two text generators together"
+                  template={template}
+                  onDragStart={onTemplateDragStart}
+                />
+              ))}
+            </div>
+          )}
+          
+          {activeTab === 'favorites' && (
+            <div className="p-4">
+              <h4 className="font-semibold mb-2 text-black">Favorites</h4>
+              <p className="text-gray-600">Your favorite agents will appear here.</p>
+            </div>
+          )}
         </>
-      )}
-      
-      {!isCollapsed && activeTab === 'templates' && (
-        <div className="p-3 space-y-3 max-h-[520px] overflow-y-auto">
-          {templates.map((template) => (
-            <WorkflowTemplate
-              key={template.id}
-              name={template.name}
-              description="Chain two text generators together"
-              template={template}
-              onDragStart={onTemplateDragStart}
-            />
-          ))}
-        </div>
-      )}
-      
-      {!isCollapsed && activeTab === 'favorites' && (
-        <div className="p-4">
-          <h4 className="font-semibold mb-2 text-black">Favorites</h4>
-          <p className="text-gray-600">Your favorite agents will appear here.</p>
-        </div>
       )}
       
       {isCollapsed && (

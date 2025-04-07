@@ -157,9 +157,6 @@ export default function InputStructureDisplay({ elementId, onInsertField }: Inpu
             <span className="text-xs text-black bg-gray-100 px-1.5 py-0.5 rounded-sm border border-black">
               {field.type}
             </span>
-            {field.required && (
-              <span className="w-1.5 h-1.5 bg-red-600 rounded-full" title="Required"></span>
-            )}
           </button>
         ))}
       </div>
