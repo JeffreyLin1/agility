@@ -721,11 +721,17 @@ serve(async (req)=>{
               outputContext.input.commits = result.commits;
               outputContext.input.summary = result.summary;
               
+              // Add any other fields that might be useful
+              if (result.pusher) {
+                outputContext.input.pusher = result.pusher;
+              }
+              
               debug('GitHub reader result stored in context', {
                 repoName: result.repoName,
                 branch: result.branch,
                 commitCount: result.commits?.length || 0,
-                summary: result.summary
+                summary: result.summary,
+                inputKeys: Object.keys(outputContext.input)
               });
             } catch (parseError) {
               debug('Error parsing GitHub reader response', parseError);

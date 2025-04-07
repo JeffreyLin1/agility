@@ -151,7 +151,7 @@ serve(async (req) => {
       debug('Fetching commits from GitHub API');
       
       // Fetch commits from the GitHub API
-      const commitsUrl = `https://api.github.com/repos/${repository}/commits?sha=${branch}&per_page=10`;
+      const commitsUrl = `https://api.github.com/repos/${repository}/commits?sha=${branch}&per_page=1`;
       
       const commitsResponse = await fetch(commitsUrl, {
         headers: {
@@ -170,55 +170,21 @@ serve(async (req) => {
       const commitsData = await commitsResponse.json();
       
       // Process the commits to extract relevant information
-      const commits = await Promise.all(commitsData.map(async (commit: any) => {
-        // Fetch detailed commit info to get file changes
-        const detailUrl = `https://api.github.com/repos/${repository}/commits/${commit.sha}`;
-        const detailResponse = await fetch(detailUrl, {
-          headers: {
-            'Authorization': `token ${finalAccessToken}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Workflow-Agent'
-          }
-        });
-        
-        if (!detailResponse.ok) {
-          debug('Error fetching commit details', { sha: commit.sha, status: detailResponse.status });
-          // Return basic commit info without files
-          return {
-            id: commit.sha,
-            message: commit.commit.message,
-            author: commit.commit.author.name,
-            email: commit.commit.author.email,
-            timestamp: commit.commit.author.date,
-            files: []
-          };
-        }
-        
-        const detailData = await detailResponse.json();
-        
-        // Extract file changes
-        const files = detailData.files.map((file: any) => ({
-          filename: file.filename,
-          status: file.status,
-          additions: file.additions,
-          deletions: file.deletions,
-          changes: file.changes,
-          patch: file.patch || null
-        }));
-        
+      const commits = commitsData.map(commit => {
         return {
           id: commit.sha,
           message: commit.commit.message,
           author: commit.commit.author.name,
-          email: commit.commit.author.email,
           timestamp: commit.commit.author.date,
-          files: files
+          url: commit.html_url,
+          // Other commit details
         };
-      }));
+      });
       
-      // Calculate summary
-      const totalFiles = commits.reduce((sum, commit) => sum + commit.files.length, 0);
-      const summary = `${commits.length} commits with ${totalFiles} file changes`;
+      // Create a more focused summary for a single commit
+      const summary = commits.length > 0 
+        ? `Latest commit: "${commits[0].message}" by ${commits[0].author} on ${new Date(commits[0].timestamp).toLocaleString()}`
+        : `No commits found in ${repository} on branch ${branch}`;
       
       // Store the result in the agent_outputs table
       const { error: outputError } = await supabaseClient
