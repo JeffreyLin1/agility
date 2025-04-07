@@ -91,6 +91,7 @@ export const discordMessengerOutputStructure: AgentOutputStructure = {
 };
 
 export const githubReaderOutputStructure: AgentOutputStructure = {
+  type: 'github',
   description: "Data from GitHub repository commits and changes.",
   fields: [
     {
