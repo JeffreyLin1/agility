@@ -53,6 +53,7 @@ export default function WorkflowPage() {
         <FloatingAgentPanel 
           agents={agents} 
           onAgentDragStart={handleAgentDragStart}
+          onTemplateDragStart={handleTemplateDragStart}
         />
       </div>
     </div>
