@@ -503,7 +503,7 @@ export default function GitHubReaderConfig({ elementId, onClose }: GitHubReaderC
                   <div className="mt-2 text-xs">
                     <div className="font-bold text-gray-700">Files changed: {commit.files.length}</div>
                     <ul className="list-disc list-inside">
-                      {commit.files.slice(0, 3).map((file: CommitFile, fileIndex) => (
+                      {commit.files.slice(0, 3).map((file: CommitFile, fileIndex: number) => (
                         <li key={fileIndex} className="text-gray-600">
                           {file.filename} ({file.status}: +{file.additions} -{file.deletions})
                         </li>
