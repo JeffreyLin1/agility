@@ -201,6 +201,7 @@ export default function Home() {
             <Link href="/workflow">
               <button 
                 className="px-12 py-5 bg-black text-white font-medium rounded-md shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,0.4)] active:translate-y-[3px] active:translate-x-[3px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,0.3)] transition-all text-xl"
+                style={{backgroundColor: 'white', color: 'black'}}
               >
                 Try the Workflow Builder
               </button>
